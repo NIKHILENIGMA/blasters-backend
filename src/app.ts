@@ -7,7 +7,7 @@ import compression from 'compression'
 import { clerkMiddleware } from '@clerk/express'
 import 'source-map-support/register'
 
-import { CORS_METHODS, CORS_ORIGIN, IS_PRODUCTION } from '@/config'
+import { CORS_METHODS, CORS_ORIGIN, IS_PRODUCTION, logger } from '@/config'
 import router from '@/core'
 import { errorHandler, notFound } from '@/middlewares'
 import { BASE_API_PATH } from './constants/app.constants'
@@ -32,11 +32,19 @@ const createApp = (): Application => {
             credentials: true
         })
     )
+    logger.info(
+        'CORS configured with allowed origins: ' +
+            (allowedOrigins ? allowedOrigins.join(', ') : 'All')
+    )
+    app.use(
+        clerkMiddleware({
+            debug: true
+        })
+    ) // Clerk authentication
     app.use(helmet()) // Security headers
     app.use(compression()) // Compress responses
     app.use(cookieParser()) // Parse cookies
     app.use(BASE_API_PATH, WebhookRouter) // Auth webhooks
-    app.use(clerkMiddleware()) // Clerk authentication
     app.use(express.json({ limit: '10mb' })) // Limit JSON body size to 10mb
     app.use(express.urlencoded({ extended: true, limit: '5mb' })) // Limit URL-encoded body size to 5mb
     app.use(express.static('public')) // Serve static files from 'public' directory
