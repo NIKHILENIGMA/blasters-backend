@@ -98,7 +98,7 @@ export class UserService implements IUserService {
             lastName: row.lastName,
             username: row.username,
             totalScore: row.totalScore,
-            rank: row.rank, 
+            rank: row.rank,
             profileImage: row.profileImage
         })) as LeaderBoardRanking[]
 

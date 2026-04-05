@@ -15,11 +15,19 @@ import WebhookRouter from './modules/webhooks/webhooks.routes'
 
 const createApp = (): Application => {
     const app = express()
-
+    const allowedOrigins = CORS_ORIGIN?.split(',').map((o) => o.trim())
     // Middleware
     app.use(
         cors({
-            origin: CORS_ORIGIN, // Allow all origins by default
+            origin: (origin, callback) => {
+                if (!origin) return callback(null, true)
+
+                if (allowedOrigins?.includes(origin)) {
+                    return callback(null, origin)
+                }
+
+                return callback(new Error('Not allowed by CORS'))
+            }, // Allow all origins by default
             methods: CORS_METHODS,
             credentials: true
         })

@@ -62,7 +62,6 @@ export const fixtureDetails: CreateFixture[] = [
     }
 ]
 
-
 export async function seedFixtures() {
     logger.info('🌱 Starting database seed...')
 
