@@ -4,7 +4,7 @@ import helmet from 'helmet'
 import morgan from 'morgan'
 import cookieParser from 'cookie-parser'
 import compression from 'compression'
-import { clerkMiddleware } from '@clerk/express'
+import { clerkMiddleware as clerkExpressMiddleware } from '@clerk/express'
 import 'source-map-support/register'
 
 import { CORS_METHODS, CORS_ORIGIN, IS_PRODUCTION, logger } from '@/config'
@@ -36,14 +36,10 @@ const createApp = (): Application => {
         'CORS configured with allowed origins: ' +
             (allowedOrigins ? allowedOrigins.join(', ') : 'All')
     )
-    app.use(
-        clerkMiddleware({
-            debug: true
-        })
-    ) // Clerk authentication
+    app.use(cookieParser()) // Parse cookies
+    app.use(clerkExpressMiddleware()) // Clerk authentication
     app.use(helmet()) // Security headers
     app.use(compression()) // Compress responses
-    app.use(cookieParser()) // Parse cookies
     app.use(BASE_API_PATH, WebhookRouter) // Auth webhooks
     app.use(express.json({ limit: '10mb' })) // Limit JSON body size to 10mb
     app.use(express.urlencoded({ extended: true, limit: '5mb' })) // Limit URL-encoded body size to 5mb
