@@ -317,15 +317,30 @@ export class TeamService implements ITeamService {
         // Step 1: Validate that session is active and not locked
         const session = await this.getActiveSession()
 
+        if (!session) {
+            return {
+                hasTeam: false,
+                session: null,
+                team: null
+            }
+        }
         // Step 2: Fetch the user's fantasy team for the given match
         const [team] = await this.db
             .select()
             .from(fantasyTeams)
-            .where(eq(fantasyTeams.userId, userId))
+            .where(and(eq(fantasyTeams.userId, userId), eq(fantasyTeams.matchId, session.id)))
             .limit(1)
 
         if (!team) {
-            throw new BadRequestError('No fantasy team found for the user in the current match')
+            return {
+                hasTeam: false,
+                session: {
+                    id: session.id,
+                    startTime: session.startTime,
+                    isLocked: session.isLocked
+                },
+                team: null
+            }
         }
 
         let teamPlayers: Array<Omit<FantasyTeam, 'ownerId'>> = []
@@ -346,25 +361,20 @@ export class TeamService implements ITeamService {
         }
 
         return {
-            hasTeam: team.id ? true : false,
-            session: session
-                ? {
-                      id: session.id,
-                      startTime: session.startTime,
-                      isLocked: session.isLocked
-                  }
-                : null,
-            team:
-                team !== null
-                    ? {
-                          id: team.id,
-                          ownerId: team.userId,
-                          name: team.teamName ?? 'Unnamed Team',
-                          players: teamPlayers, // Already mapped by the select() statement above!
-                          captainId: team.captainId,
-                          viceCaptainId: team.viceCaptainId
-                      }
-                    : null
+            hasTeam: true,
+            session: {
+                id: session.id,
+                startTime: session.startTime,
+                isLocked: session.isLocked
+            },
+            team: {
+                id: team.id,
+                ownerId: team.userId,
+                name: team.teamName ?? 'Unnamed Team',
+                players: teamPlayers,
+                captainId: team.captainId,
+                viceCaptainId: team.viceCaptainId
+            }
         }
     }
 
