@@ -1,16 +1,19 @@
 import { logger } from '@/config'
 // import { seedMatches } from './matches'
-import { seedFixtures } from './fixtures'
-// import { seedPlayers } from './players'
+// import { seedFixtures } from './fixtures'
+import { seedPlayers } from './players'
+// import { seedUsers } from './users'
+// import { seedTeams } from './teams'
 
 async function main() {
     logger.info('Starting database seeding...')
 
     try {
-        // await Promise.resolve() // Placeholder for any async setup if needed
-        // await seedPlayers()
+        await seedPlayers()
+        // await seedUsers()
         // await seedMatches()
-        await seedFixtures()
+        // await seedFixtures()
+        // await seedTeams()
         logger.info('Database seeding completed successfully.')
     } catch (error) {
         logger.error(`Seeding failed due to error: ${(error as Error).message}`)
