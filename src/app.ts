@@ -7,7 +7,7 @@ import compression from 'compression'
 import { clerkMiddleware as clerkExpressMiddleware } from '@clerk/express'
 import 'source-map-support/register'
 
-import { CORS_METHODS, CORS_ORIGIN, IS_PRODUCTION, logger } from '@/config'
+import { CORS_METHODS, CORS_ORIGIN, IS_PRODUCTION } from '@/config'
 import router from '@/core'
 import { errorHandler, notFound } from '@/middlewares'
 import { BASE_API_PATH } from './constants/app.constants'
@@ -31,10 +31,6 @@ const createApp = (): Application => {
             methods: CORS_METHODS,
             credentials: true
         })
-    )
-    logger.info(
-        'CORS configured with allowed origins: ' +
-            (allowedOrigins ? allowedOrigins.join(', ') : 'All')
     )
     app.use(cookieParser()) // Parse cookies
     app.use(clerkExpressMiddleware()) // Clerk authentication
