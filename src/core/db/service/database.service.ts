@@ -2,7 +2,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { NodePgDatabase } from 'drizzle-orm/node-postgres'
 import { Pool, type PoolConfig } from 'pg'
 
-import { logger } from '@/config'
+import { IS_PRODUCTION, logger } from '@/config'
 
 import * as schema from '../schema'
 
@@ -15,9 +15,11 @@ export class DatabaseService {
         max: 10, // Maximum number of connections in the pool
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 2000,
-        ssl: {
-            rejectUnauthorized: false // For secure connections, ensure this is properly configured in production
-        }
+        ssl: IS_PRODUCTION
+            ? {
+                  rejectUnauthorized: false //
+              }
+            : false
     }
     private _db: DatabaseConnection
 
