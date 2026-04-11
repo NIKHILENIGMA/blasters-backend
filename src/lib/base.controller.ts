@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { ApiResponse } from '@/util'
 import { SuccessResponse } from '@/types/api/success.types'
+import { logger } from '@/config'
 
 export abstract class BaseController {
     // Standardized request handler
@@ -21,6 +22,9 @@ export abstract class BaseController {
             )
         } catch (error) {
             next(error)
+            logger.error(
+                `Error processing request: ${error instanceof Error ? error.message : String(error)}`
+            )
         }
     }
 
