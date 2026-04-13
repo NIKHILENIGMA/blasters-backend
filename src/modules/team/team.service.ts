@@ -75,6 +75,16 @@ export interface ITeamService {
 export class TeamService implements ITeamService {
     constructor(private readonly db: DatabaseConnection) {}
 
+    // temporary helper function to detect unique constraint violation on team name for the same user and match
+    private isTeamNameUniqueViolation(error: unknown): boolean {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        if (errorMessage.includes('Failed query: insert into "fantasy_teams"')) {
+            return true
+        }
+
+        return false
+    }
+
     async createTeam(
         userId: string,
         data: {
@@ -159,40 +169,51 @@ export class TeamService implements ITeamService {
 
         // STEP 6: Create the Fantasy Team (Assuming a function createFantasyTeam exists)
 
-        await this.db.transaction(async (trx) => {
-            // check if team name is unique for the user and match
-            const [existingTeam] = await trx
-                .select()
-                .from(fantasyTeams)
-                .where(
-                    and(
-                        eq(fantasyTeams.userId, userId),
-                        eq(fantasyTeams.matchId, data.matchId),
-                        eq(fantasyTeams.teamName, data.name)
+        try {
+            await this.db.transaction(async (trx) => {
+                // check if team name is unique for the user and match
+                const [existingTeam] = await trx
+                    .select()
+                    .from(fantasyTeams)
+                    .where(
+                        and(
+                            eq(fantasyTeams.userId, userId),
+                            eq(fantasyTeams.matchId, data.matchId),
+                            eq(fantasyTeams.teamName, data.name)
+                        )
                     )
-                )
-            if (existingTeam) {
+                if (existingTeam) {
+                    throw new BadRequestError(
+                        'A team with this name already exists for the selected match'
+                    )
+                }
+
+                // Insert the new fantasy team into the database
+                await trx.insert(fantasyTeams).values({
+                    userId,
+                    matchId: data.matchId,
+                    teamName: data.name,
+                    players: data.playerIds,
+                    captainId: data.captainId,
+                    viceCaptainId: data.viceCaptainId
+                })
+
+                // Deduct the total cost from the user's wallet (Assuming a function updateUserWalletBalance exists)
+                await trx
+                    .update(users)
+                    .set({ availablePoints: user.availablePoints - totalCost })
+                    .where(eq(users.id, userId))
+            })
+        } catch (error) {
+            if (this.isTeamNameUniqueViolation(error)) {
                 throw new BadRequestError(
-                    'A team with this name already exists for the selected match'
+                    'Team name already exists. Please choose a different name.'
                 )
             }
-
-            // Insert the new fantasy team into the database
-            await trx.insert(fantasyTeams).values({
-                userId,
-                matchId: data.matchId,
-                teamName: data.name,
-                players: data.playerIds,
-                captainId: data.captainId,
-                viceCaptainId: data.viceCaptainId
-            })
-
-            // Deduct the total cost from the user's wallet (Assuming a function updateUserWalletBalance exists)
-            await trx
-                .update(users)
-                .set({ availablePoints: user.availablePoints - totalCost })
-                .where(eq(users.id, userId))
-        })
+            throw new BadRequestError(
+                error instanceof Error ? error.message : 'Failed to create team'
+            )
+        }
     }
 
     async updateTeam(
