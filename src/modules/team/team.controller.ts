@@ -87,6 +87,45 @@ export class TeamController extends BaseController {
         })
     }
 
+    getTodayFixtures = async (req: Request, res: Response, next: NextFunction) => {
+        return this.handleRequest(req, res, next, async () => {
+            const userId = req.user?.id
+            if (!userId) {
+                throw new UnauthorizedError('User not authenticated')
+            }
+
+            const fixtures = await this.service.getTodayFixtures()
+
+            return this.createResponse({
+                statusCode: STATUS_CODE.OK,
+                message: 'Today fixtures fetched successfully',
+                data: fixtures
+            })
+        })
+    }
+
+    getTeamById = async (req: Request, res: Response, next: NextFunction) => {
+        return this.handleRequest(req, res, next, async () => {
+            const userId = req.user?.id
+            if (!userId) {
+                throw new UnauthorizedError('User not authenticated')
+            }
+
+            const params = ValidationService.validateParams(
+                req.params,
+                UpdateFantasyTeamParamsSchema
+            )
+
+            const team = await this.service.getTeamById(userId, params.teamId)
+
+            return this.createResponse({
+                statusCode: STATUS_CODE.OK,
+                message: 'Fantasy team fetched successfully',
+                data: team
+            })
+        })
+    }
+
     changeRoles = async (req: Request, res: Response, next: NextFunction) => {
         return this.handleRequest(req, res, next, async () => {
             const userId = req.user?.id

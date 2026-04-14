@@ -1,4 +1,4 @@
-import { fixtures } from '@/core'
+import { fantasyTeams, fixtures } from '@/core'
 import { matches } from '@/core/db/schema/matches'
 import { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 
@@ -7,3 +7,5 @@ export type Match = InferSelectModel<typeof matches>
 
 export type CreateFixture = InferInsertModel<typeof fixtures>
 export type Fixture = InferSelectModel<typeof fixtures>
+
+export type Team = InferSelectModel<typeof fantasyTeams>

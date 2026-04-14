@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm'
 
 import {
     MAX_OVERSEAS_PLAYERS,
@@ -14,6 +14,24 @@ import { BadRequestError, ForbiddenError } from '@/util'
 import { Match } from './team.types'
 import { logger } from '@/config'
 import { Player } from '../players/players.types'
+
+interface Team {
+    id: string
+    userId: string
+    matchId: string
+    teamName: string | null
+    players: {
+        id: string
+        name: string
+        team: 'CSK' | 'MI' | 'RCB' | 'KKR' | 'SRH' | 'DC' | 'PBKS' | 'RR' | 'GT' | 'LSG'
+        isOverseas: boolean
+        profilePicUrl: string
+        role: 'Batsman' | 'Bowler' | 'All-Rounder' | 'Wicket-Keeper'
+    }[]
+    captainId: string
+    viceCaptainId: string
+    updatedAt: Date
+}
 
 interface FantasyTeam {
     id: string
@@ -70,6 +88,14 @@ export interface ITeamService {
         userId: string,
         data: { teamId: string; fixtureId: string; newCaptainId: string; newViceCaptainId: string }
     ): Promise<void>
+    getTodayFixtures(): Promise<{
+        id: string
+        teamA: string
+        teamB: string
+        startTime: Date
+        isProcessed: boolean
+    }>
+    getTeamById(userId: string, teamId: string): Promise<Team>
 }
 
 export class TeamService implements ITeamService {
@@ -83,6 +109,25 @@ export class TeamService implements ITeamService {
         }
 
         return false
+    }
+
+    private getISTDayRangeInUTC(): { startUTC: Date; endUTC: Date } {
+        const now = new Date()
+
+        // Convert current time to IST manually
+        const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
+
+        const startOfDayIST = new Date(istNow)
+        startOfDayIST.setHours(0, 0, 0, 0)
+
+        const endOfDayIST = new Date(startOfDayIST)
+        endOfDayIST.setDate(endOfDayIST.getDate() + 1)
+
+        // Convert IST → UTC
+        const startUTC = new Date(startOfDayIST.getTime() - 5.5 * 60 * 60 * 1000)
+        const endUTC = new Date(endOfDayIST.getTime() - 5.5 * 60 * 60 * 1000)
+
+        return { startUTC, endUTC }
     }
 
     async createTeam(
@@ -444,24 +489,24 @@ export class TeamService implements ITeamService {
         const ONE_HOUR_IN_MS: number = 60 * 60 * 1000
         // Calculate the time until the match starts
         const timeUntilMatch: number = new Date(nextFixture.startTime).getTime() - Date.now()
-        logger.info(
-            `Time until match start: ${timeUntilMatch / (1000 * 60)} min for fixture ${data.fixtureId}`
-        )
-        const formatDate = (date: Date) => {
-            return date.toLocaleString('en-IN', {
-                timeZone: 'Asia/Kolkata', // THIS is the magic line
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true
-            })
-        }
-        logger.info(
-            `Current time: ${formatDate(new Date())}, Match start time: ${formatDate(new Date(nextFixture.startTime))}`
-        )
+        // logger.info(
+        //     `Time until match start: ${timeUntilMatch / (1000 * 60)} min for fixture ${data.fixtureId}`
+        // )
+        // const formatDate = (date: Date) => {
+        //     return date.toLocaleString('en-IN', {
+        //         timeZone: 'Asia/Kolkata', // THIS is the magic line
+        //         day: 'numeric',
+        //         month: 'long',
+        //         year: 'numeric',
+        //         hour: '2-digit',
+        //         minute: '2-digit',
+        //         second: '2-digit',
+        //         hour12: true
+        //     })
+        // }
+        // logger.info(
+        //     `Current time: ${formatDate(new Date())}, Match start time: ${formatDate(new Date(nextFixture.startTime))}`
+        // )
         // Prevent role changes if the match is starting within the next hour
         if (timeUntilMatch <= ONE_HOUR_IN_MS) {
             throw new ForbiddenError('Cannot change roles within 1 hour of match start time')
@@ -476,6 +521,91 @@ export class TeamService implements ITeamService {
                 updatedAt: new Date()
             })
             .where(eq(fantasyTeams.id, data.teamId))
+    }
+
+    async getTeamById(userId: string, teamId: string): Promise<Team> {
+        const [team] = await this.db
+            .select({
+                id: fantasyTeams.id,
+                userId: fantasyTeams.userId,
+                matchId: fantasyTeams.matchId,
+                teamName: fantasyTeams.teamName,
+                playerIds: fantasyTeams.players,
+                captainId: fantasyTeams.captainId,
+                viceCaptainId: fantasyTeams.viceCaptainId,
+                updatedAt: fantasyTeams.updatedAt
+            })
+            .from(fantasyTeams)
+            .where(and(eq(fantasyTeams.id, teamId), eq(fantasyTeams.userId, userId)))
+            .limit(1)
+
+        if (!team) {
+            throw new ForbiddenError('Fantasy team not found or does not belong to the user')
+        }
+
+        let teamPlayers: Team['players'] = []
+        if (team.playerIds.length > 0) {
+            const fetchedPlayers = await this.db
+                .select({
+                    id: players.id,
+                    name: players.name,
+                    team: players.iplTeam,
+                    isOverseas: players.isOverseas,
+                    profilePicUrl: players.profileImageUrl,
+                    role: players.role
+                })
+                .from(players)
+                .where(inArray(players.id, team.playerIds))
+
+            const playerMap = new Map(fetchedPlayers.map((player) => [player.id, player]))
+
+            // Keep player order consistent with saved fantasy team order.
+            teamPlayers = team.playerIds
+                .map((playerId) => playerMap.get(playerId))
+                .filter((player): player is Team['players'][number] => Boolean(player))
+        }
+
+        return {
+            id: team.id,
+            userId: team.userId,
+            matchId: team.matchId,
+            teamName: team.teamName,
+            players: teamPlayers,
+            captainId: team.captainId,
+            viceCaptainId: team.viceCaptainId,
+            updatedAt: team.updatedAt
+        }
+    }
+
+    async getTodayFixtures(): Promise<{
+        id: string
+        teamA: string
+        teamB: string
+        startTime: Date
+        isProcessed: boolean
+    }> {
+        const { startUTC, endUTC } = this.getISTDayRangeInUTC()
+        // Fetch fixtures that are scheduled to start today (between 00:00 and 23:59)
+        const fixture = await this.db
+            .select()
+            .from(fixtures)
+            .where(and(gte(fixtures.startTime, startUTC), lt(fixtures.startTime, endUTC)))
+            .orderBy(asc(fixtures.startTime))
+
+        if (!fixture || fixture.length === 0) {
+            throw new BadRequestError('No fixtures found for today')
+        }
+
+        // logger.info(`Fixtures found for today: ${fixture[0].startTime.toLocaleString("en-IN", { timeZone: 'Asia/Kolkata' })}`)
+        const response = fixture.map((f) => ({
+            id: f.id,
+            teamA: f.teamA,
+            teamB: f.teamB,
+            startTime: f.startTime,
+            isProcessed: f.isProcessed
+        }))
+
+        return response[0]
     }
 
     async getSession(): Promise<{ isActive: boolean; session: Match | null }> {
