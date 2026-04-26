@@ -1,5 +1,9 @@
 // types.ts
 
+import { fixtures } from '@/core/db/schema/fixtures'
+import { matches } from '@/core/db/schema/matches'
+import { InferInsertModel, InferSelectModel } from 'drizzle-orm'
+
 export interface PlayerStats {
     runs: number
     fours: number
@@ -27,3 +31,9 @@ export interface CalculateFantasyPointsPayload {
     }[]
     matchResult: string
 }
+
+export type CreateMatch = InferInsertModel<typeof matches>
+export type Match = InferSelectModel<typeof matches>
+
+export type CreateFixture = InferInsertModel<typeof fixtures>
+export type Fixture = InferSelectModel<typeof fixtures>

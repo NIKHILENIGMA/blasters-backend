@@ -6,16 +6,21 @@ import { matches } from '@/core/db/schema/matches'
 import { DatabaseConnection } from '@/core/db/service/database.service'
 import { BadRequestError, NotFoundError } from '@/util'
 
-import { CalculateFantasyPointsPayload, PlayerStats } from './admin.types'
+import { CalculateFantasyPointsPayload, Fixture, Match, PlayerStats } from './admin.types'
 import { matchStats } from '@/core/db/schema/match-stats'
-import { CreateFixture, CreateMatch, Match } from '../team/team.types'
+import { CreateFixture, CreateMatch } from '../team/team.types'
 
 export interface IAdminService {
     calculateFantasyPoints(matchId: string, data: CalculateFantasyPointsPayload): Promise<void>
     lockMatch(matchId: string, isLocked: boolean): Promise<void>
-    getMatchDetails(matchId: string): Promise<Match>
     createMatch(data: CreateMatch): Promise<void>
+    updateMatch(matchId: string, data: Partial<Match>): Promise<void>
+    getMatchById(matchId: string): Promise<Match>
+    getMatches(): Promise<Match[]>
     createFixture(data: CreateFixture): Promise<void>
+    updateFixture(fixtureId: string, data: Partial<Fixture>): Promise<void>
+    getFixtureById(fixtureId: string): Promise<Fixture>
+    getFixtures(): Promise<Fixture[]>
 }
 
 export class AdminService implements IAdminService {
@@ -132,10 +137,6 @@ export class AdminService implements IAdminService {
         await this.db.update(matches).set({ isLocked: isLocked }).where(eq(matches.id, matchId))
     }
 
-    async createMatch(data: CreateMatch): Promise<void> {
-        await this.db.insert(matches).values(data)
-    }
-
     async createFixture(data: CreateFixture): Promise<void> {
         const [match] = await this.db.select().from(matches).where(eq(matches.id, data.matchId))
 
@@ -150,7 +151,42 @@ export class AdminService implements IAdminService {
         })
     }
 
-    async getMatchDetails(matchId: string): Promise<Match> {
+    async updateFixture(fixtureId: string, data: Partial<Fixture>): Promise<void> {
+        const [fixture] = await this.db.select().from(fixtures).where(eq(fixtures.id, fixtureId))
+        if (!fixture) {
+            throw new NotFoundError('Fixture not found for this match session')
+        }
+
+        await this.db.update(fixtures).set(data).where(eq(fixtures.id, fixtureId))
+    }
+
+    async getFixtureById(fixtureId: string): Promise<Fixture> {
+        const [fixture] = await this.db.select().from(fixtures).where(eq(fixtures.id, fixtureId))
+
+        if (!fixture) {
+            throw new NotFoundError('Fixture not found')
+        }
+        return fixture
+    }
+
+    async getFixtures(): Promise<Fixture[]> {
+        return await this.db.select().from(fixtures)
+    }
+
+    async createMatch(data: CreateMatch): Promise<void> {
+        await this.db.insert(matches).values(data)
+    }
+
+    async updateMatch(matchId: string, data: Partial<Match>): Promise<void> {
+        const [match] = await this.db.select().from(matches).where(eq(matches.id, matchId))
+        if (!match) {
+            throw new NotFoundError('Match session not found')
+        }
+
+        await this.db.update(matches).set(data).where(eq(matches.id, matchId))
+    }
+
+    async getMatchById(matchId: string): Promise<Match> {
         const [match] = await this.db.select().from(matches).where(eq(matches.id, matchId))
 
         if (!match) {
@@ -158,6 +194,10 @@ export class AdminService implements IAdminService {
         }
 
         return match
+    }
+
+    async getMatches(): Promise<Match[]> {
+        return await this.db.select().from(matches)
     }
 
     private calculateBasePoints(stats: PlayerStats): number {

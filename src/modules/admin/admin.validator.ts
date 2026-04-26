@@ -4,6 +4,10 @@ export const MatchIdParamSchema = z.object({
     matchId: z.string()
 })
 
+export const FixtureIdParamSchema = z.object({
+    fixtureId: z.string()
+})
+
 export const FantasyPointsCalculationSchema = z.object({
     fixtureId: z.string(), // e.g., "MI_v_CSK_April15"
     playerPerformances: z.array(
@@ -38,7 +42,7 @@ export const CreateMatchSchema = z.object({
 
 export const CreateFixtureSchema = z.object({
     id: z.string().min(1, 'Fixture ID is required'),
-    matchId: z.string().uuid('Match ID must be a valid UUID'),
+    matchId: z.uuid('Match ID must be a valid UUID'),
     teamA: z.string().min(1, 'Team A is required'),
     teamB: z.string().min(1, 'Team B is required'),
     startTime: z.coerce.date(),

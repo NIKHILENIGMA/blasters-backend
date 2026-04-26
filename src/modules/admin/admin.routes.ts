@@ -10,9 +10,15 @@ const router = Router()
 // Apply middleware to all routes
 router.use(clerkMiddleware, isAdmin)
 
-router.post('/matches', adminController.createMatch)
 router.post('/fixtures', adminController.createFixture)
-router.get('/matches/:matchId', adminController.getMatchDetails)
+
+router.route('/matches').post(adminController.createMatch).get(adminController.getMatches)
+
+router
+    .route('/matches/:matchId')
+    .patch(adminController.updateMatch)
+    .get(adminController.getMatchById)
+
 router.post('/matches/:matchId/process', adminController.processMatchPerformance)
 router.patch('/matches/:matchId/toggle-lock', adminController.toggleLock)
 
