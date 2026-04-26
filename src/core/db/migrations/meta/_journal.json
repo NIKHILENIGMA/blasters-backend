@@ -8,6 +8,13 @@
             "when": 1775310666991,
             "tag": "0000_application_schema",
             "breakpoints": true
+        },
+        {
+            "idx": 1,
+            "version": "7",
+            "when": 1777207793277,
+            "tag": "0001_wide_sprite",
+            "breakpoints": true
         }
     ]
 }

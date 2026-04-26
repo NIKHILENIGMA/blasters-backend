@@ -23,6 +23,7 @@ export const fixtures = pgTable('fixtures', {
     teamA: text('team_a').notNull(),
     teamB: text('team_b').notNull(),
     startTime: timestamp('start_time').notNull(), // Exact time of the 1st ball
+    lineupLockAt: timestamp('lineup_lock_at'), // Time when lineups are locked (e.g., 30 minutes before start)
     isProcessed: boolean('is_processed').default(false).notNull(),
     matchNumber: text('match_number'), // e.g., 'Match 1', 'Match 2', etc.
     venueId: text('venue_id'), // e.g., 'Wankhede Stadium'
