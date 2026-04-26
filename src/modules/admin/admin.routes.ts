@@ -11,6 +11,7 @@ const router = Router()
 router.use(clerkMiddleware, isAdmin)
 
 router.post('/matches', adminController.createMatch)
+router.post('/fixtures', adminController.createFixture)
 router.get('/matches/:matchId', adminController.getMatchDetails)
 router.post('/matches/:matchId/process', adminController.processMatchPerformance)
 router.patch('/matches/:matchId/toggle-lock', adminController.toggleLock)

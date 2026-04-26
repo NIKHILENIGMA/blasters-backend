@@ -29,6 +29,21 @@ export const LockMatchSchema = z.object({
 
 export const CreateMatchSchema = z.object({
     title: z.string(), // e.g., "Session 1: Mon-Fri"
-    startTime: z.date(), // ISO date string
-    endTime: z.date() // ISO date string
+    buyWindowOpenAt: z.coerce.date().optional(),
+    buyWindowCloseAt: z.coerce.date().optional(),
+    squadLockAt: z.coerce.date().optional(),
+    startTime: z.coerce.date(), // ISO date string
+    endTime: z.coerce.date() // ISO date string
+})
+
+export const CreateFixtureSchema = z.object({
+    id: z.string().min(1, 'Fixture ID is required'),
+    matchId: z.string().uuid('Match ID must be a valid UUID'),
+    teamA: z.string().min(1, 'Team A is required'),
+    teamB: z.string().min(1, 'Team B is required'),
+    startTime: z.coerce.date(),
+    lineupLockAt: z.coerce.date().optional(),
+    matchNumber: z.string().optional(),
+    venueId: z.string().optional(),
+    matchStatus: z.enum(['scheduled', 'live', 'completed']).optional()
 })

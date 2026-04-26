@@ -8,13 +8,14 @@ import { BadRequestError, NotFoundError } from '@/util'
 
 import { CalculateFantasyPointsPayload, PlayerStats } from './admin.types'
 import { matchStats } from '@/core/db/schema/match-stats'
-import { CreateMatch, Match } from '../team/team.types'
+import { CreateFixture, CreateMatch, Match } from '../team/team.types'
 
 export interface IAdminService {
     calculateFantasyPoints(matchId: string, data: CalculateFantasyPointsPayload): Promise<void>
     lockMatch(matchId: string, isLocked: boolean): Promise<void>
     getMatchDetails(matchId: string): Promise<Match>
     createMatch(data: CreateMatch): Promise<void>
+    createFixture(data: CreateFixture): Promise<void>
 }
 
 export class AdminService implements IAdminService {
@@ -133,6 +134,20 @@ export class AdminService implements IAdminService {
 
     async createMatch(data: CreateMatch): Promise<void> {
         await this.db.insert(matches).values(data)
+    }
+
+    async createFixture(data: CreateFixture): Promise<void> {
+        const [match] = await this.db.select().from(matches).where(eq(matches.id, data.matchId))
+
+        if (!match) {
+            throw new NotFoundError('Match session not found for this fixture')
+        }
+
+        await this.db.insert(fixtures).values({
+            ...data,
+            lineupLockAt: data.lineupLockAt ?? new Date(data.startTime.getTime() - 60 * 60 * 1000),
+            matchStatus: data.matchStatus ?? 'scheduled'
+        })
     }
 
     async getMatchDetails(matchId: string): Promise<Match> {

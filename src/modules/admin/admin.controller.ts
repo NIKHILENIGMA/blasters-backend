@@ -5,6 +5,7 @@ import { STATUS_CODE } from '@/types/api/success.types'
 import { UnauthorizedError } from '@/util'
 import { IAdminService } from './admin.service'
 import {
+    CreateFixtureSchema,
     CreateMatchSchema,
     FantasyPointsCalculationSchema,
     LockMatchSchema,
@@ -51,6 +52,25 @@ export class AdminController extends BaseController {
             return this.createResponse({
                 statusCode: STATUS_CODE.CREATED,
                 message: 'Match created successfully',
+                data: null
+            })
+        })
+    }
+
+    createFixture = async (req: Request, res: Response, next: NextFunction) => {
+        return this.handleRequest(req, res, next, async () => {
+            const userId = req.user?.id
+            if (!userId) {
+                throw new UnauthorizedError('User not authenticated')
+            }
+
+            const body = ValidationService.validateBody(req.body, CreateFixtureSchema)
+
+            await this.service.createFixture(body)
+
+            return this.createResponse({
+                statusCode: STATUS_CODE.CREATED,
+                message: 'Fixture created successfully',
                 data: null
             })
         })
