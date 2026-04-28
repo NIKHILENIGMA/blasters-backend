@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm'
 
 import {
     fantasyFranchises,
@@ -18,7 +18,8 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '@
 import {
     GetCurrentRosterCycleResponse,
     GetFixtureLineupResponse,
-    GetFranchiseOverviewResponse
+    GetFranchiseOverviewResponse,
+    GetUpcomingFixturesResponse
 } from './franchise.types'
 
 const DEFAULT_RULESET: RulesetConfig = {
@@ -73,6 +74,7 @@ export interface IFranchiseService {
     getFranchiseOverview(userId: string): Promise<unknown>
     getCurrentRosterCycle(userId: string): Promise<unknown>
     saveSquad(userId: string, data: SaveSquadInput): Promise<void>
+    getUpcomingFixtures(userId: string): Promise<GetUpcomingFixturesResponse>
     getFixtureLineup(userId: string, fixtureId: string): Promise<unknown>
     saveFixtureLineup(userId: string, data: SaveFixtureLineupInput): Promise<void>
 }
@@ -227,6 +229,34 @@ export class FranchiseService implements IFranchiseService {
                 }))
             )
         })
+    }
+
+    async getUpcomingFixtures(userId: string): Promise<GetUpcomingFixturesResponse> {
+        const franchise = await this.requireFranchise(userId)
+        const activeMatch = await this.getActiveMatchWindow()
+
+        if (!activeMatch) {
+            return { fixtures: [] }
+        }
+
+        const rosterCycle = await this.getRosterCycleByFranchiseAndMatch(
+            franchise.id,
+            activeMatch.id
+        )
+
+        if (!rosterCycle) {
+            return { fixtures: [] }
+        }
+
+        const cycleFixtures = await this.db
+            .select()
+            .from(fixtures)
+            .where(eq(fixtures.matchId, activeMatch.id))
+            .orderBy(asc(fixtures.startTime))
+
+        return {
+            fixtures: cycleFixtures
+        }
     }
 
     async getFixtureLineup(userId: string, fixtureId: string): Promise<GetFixtureLineupResponse> {

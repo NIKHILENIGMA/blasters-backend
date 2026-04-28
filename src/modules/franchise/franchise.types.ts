@@ -91,3 +91,19 @@ export interface GetFixtureLineupResponse {
         selectionType: 'PLAYING' | 'SUBSTITUTE'
     }[]
 }
+
+export interface GetUpcomingFixturesResponse {
+    fixtures: Array<{
+        id: string
+        startTime: Date
+        matchId: string
+        teamA: string
+        teamB: string
+        lineupLockAt: Date | null
+        isProcessed: boolean
+        matchNumber: string | null
+        venueId: string | null
+        matchResult: string | null
+        matchStatus: 'scheduled' | 'live' | 'completed' | null
+    }>
+}

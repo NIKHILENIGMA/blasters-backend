@@ -10,7 +10,7 @@ export async function seedMatches() {
     try {
         logger.info(`Inserting ${iplSessions.length} sessions...`)
         await db.insert(matches).values(iplSessions)
-        // await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate async operation
+
         logger.info('Seeding matches completed successfully!')
     } catch (error) {
         logger.error(

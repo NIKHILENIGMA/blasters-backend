@@ -6,7 +6,7 @@ const defaultRulesetConfig: CreateRuleSet = {
     name: 'Default Ruleset',
     scope: 'global',
     config: {
-        totalPlayers: 11,
+        totalPlayers: 12,
         roles: {
             batsman: { min: 5 },
             bowler: { min: 4 },

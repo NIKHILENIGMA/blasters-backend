@@ -10,7 +10,12 @@ const router = Router()
 // Apply middleware to all routes
 router.use(clerkMiddleware, isAdmin)
 
-router.post('/fixtures', adminController.createFixture)
+router.route('/fixtures').post(adminController.createFixture).get(adminController.getFixtures)
+
+router
+    .route('/fixtures/:fixtureId')
+    .patch(adminController.updateFixture)
+    .get(adminController.getFixtureById)
 
 router.route('/matches').post(adminController.createMatch).get(adminController.getMatches)
 

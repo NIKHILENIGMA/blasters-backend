@@ -71,6 +71,23 @@ export class FranchiseController extends BaseController {
         })
     }
 
+    getUpcomingFixtures = async (req: Request, res: Response, next: NextFunction) => {
+        return this.handleRequest(req, res, next, async () => {
+            const userId = req.user?.id
+            if (!userId) {
+                throw new UnauthorizedError('User not authenticated')
+            }
+
+            const data = await this.service.getUpcomingFixtures(userId)
+
+            return this.createResponse({
+                statusCode: STATUS_CODE.OK,
+                message: 'Upcoming fixtures fetched successfully',
+                data
+            })
+        })
+    }
+
     saveSquad = async (req: Request, res: Response, next: NextFunction) => {
         return this.handleRequest(req, res, next, async () => {
             const userId = req.user?.id
