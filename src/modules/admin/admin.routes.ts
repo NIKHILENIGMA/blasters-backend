@@ -17,6 +17,10 @@ router
     .patch(adminController.updateFixture)
     .get(adminController.getFixtureById)
 
+router.route('/fixtures/:fixtureId/calculate').post(adminController.calculatePoints)
+router.route('/fixtures/:fixtureId/preview').get(adminController.previewPoints)
+router.route('/fixtures/:fixtureId/publish').post(adminController.publishPoints)
+
 router.route('/matches').post(adminController.createMatch).get(adminController.getMatches)
 
 router

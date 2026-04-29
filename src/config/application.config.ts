@@ -27,3 +27,5 @@ export const CORS_CREDENTIALS: boolean = process.env.CORS_CREDENTIALS === 'true'
 // Database Configuration
 export const DATABASE_URL: string =
     process.env.DATABASE_URL || 'postgres://user:password@localhost:5432/mydatabase'
+
+export const CRICBUZ_API_KEY: string = String(process.env.CRICBUZ_API_KEY)

@@ -8,23 +8,8 @@ export const FixtureIdParamSchema = z.object({
     fixtureId: z.string()
 })
 
-export const FantasyPointsCalculationSchema = z.object({
-    fixtureId: z.string(), // e.g., "MI_v_CSK_April15"
-    playerPerformances: z.array(
-        z.object({
-            playerId: z.string(),
-            stats: z.object({
-                runs: z.number(),
-                fours: z.number(),
-                sixes: z.number(),
-                wickets: z.number(),
-                catches: z.number(),
-                runouts: z.number()
-            }),
-            isOverseas: z.boolean()
-        })
-    ),
-    matchResult: z.string() // e.g., "MI won by 5 wickets"
+export const IngestMatchPerformanceSchema = z.object({
+    cricbuzzMatchId: z.string().min(1, 'Cricbuzz Match ID is required')
 })
 
 export const LockMatchSchema = z.object({
@@ -42,7 +27,7 @@ export const CreateMatchSchema = z.object({
 
 export const CreateFixtureSchema = z.object({
     id: z.string().min(1, 'Fixture ID is required'),
-    matchId: z.uuid('Match ID must be a valid UUID'),
+    matchId: z.string().uuid('Match ID must be a valid UUID'),
     teamA: z.string().min(1, 'Team A is required'),
     teamB: z.string().min(1, 'Team B is required'),
     startTime: z.coerce.date(),

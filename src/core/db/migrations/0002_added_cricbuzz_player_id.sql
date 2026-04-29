@@ -1,0 +1,1 @@
+ALTER TABLE "ipl_players" ADD COLUMN "cricbuzz_player_id" text;

@@ -20,5 +20,6 @@ export const players = pgTable('ipl_players', {
     role: playerRoleEnum('role').notNull(),
     profileImageUrl: text('profile_image_url').notNull(),
     isOverseas: boolean('is_overseas').default(false).notNull(),
-    cost: real('cost').notNull() // e.g., 92
+    cost: real('cost').notNull(), // e.g., 92
+    cricbuzzPlayerId: text('cricbuzz_player_id') // For RapidAPI matching
 })

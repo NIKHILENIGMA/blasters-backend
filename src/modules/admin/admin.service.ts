@@ -1,8 +1,7 @@
-import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, lte, sql } from 'drizzle-orm'
 
 import {
     fantasyFranchises,
-    fixtureBoosterAwards,
     fixtureLineupPlayers,
     fixtureLineups,
     fixtureUserPlayerPoints,
@@ -12,38 +11,34 @@ import {
     matches,
     players,
     rosterCycles,
-    rulesets,
     users
 } from '@/core'
-import { RulesetConfig } from '@/core/db/schema/rulesets'
 import { DatabaseConnection } from '@/core/db/service/database.service'
 import { BadRequestError, NotFoundError } from '@/util'
 
-import { CalculateFantasyPointsPayload, Fixture, Match, PlayerStats } from './admin.types'
+import { Fixture, Match } from './admin.types'
 import { matchStats } from '@/core/db/schema/match-stats'
 import { CreateFixture, CreateMatch } from '../team/team.types'
-
-const DEFAULT_RULESET: RulesetConfig = {
-    totalPlayers: 12,
-    roles: {
-        batsman: { min: 4 },
-        bowler: { min: 5 },
-        wicketKeeper: { min: 1 },
-        allRounder: { min: 2 }
-    },
-    overseas: { max: 4 },
-    multipliers: {
-        captain: 4,
-        viceCaptain: 3,
-        impactPlayer: 2.5
-    }
-}
+import { ScoreService } from './engine/score.service'
+import { getMatchDetails, ParsedPlayerStats, processCricbuzzStats } from '@/lib/get-match-stats'
 
 type FixtureRecord = typeof fixtures.$inferSelect
 type FixtureLineupRecord = typeof fixtureLineups.$inferSelect
 
 export interface IAdminService {
-    calculateFantasyPoints(matchId: string, data: CalculateFantasyPointsPayload): Promise<void>
+    ingestMatchPerformance(fixtureId: string, cricbuzzMatchId: string): Promise<void>
+    previewPointsForFixture(fixtureId: string): Promise<{
+        fixtureId: string
+        isProcessed: boolean
+        entries: Array<{
+            fixtureUserPointsId: string
+            rosterCycleId: string
+            lineupId: string
+            totalPoints: number
+            rankSnapshot: number | null
+        }>
+    }>
+    publishMatchResults(fixtureId: string): Promise<void>
     lockMatch(matchId: string, isLocked: boolean): Promise<void>
     createMatch(data: CreateMatch): Promise<void>
     updateMatch(matchId: string, data: Partial<Match>): Promise<void>
@@ -56,60 +51,100 @@ export interface IAdminService {
 }
 
 export class AdminService implements IAdminService {
-    constructor(private readonly db: DatabaseConnection) {}
+    private readonly scoreService: ScoreService
+    constructor(private readonly db: DatabaseConnection) {
+        this.scoreService = new ScoreService()
+    }
 
-    async calculateFantasyPoints(
-        matchId: string,
-        data: CalculateFantasyPointsPayload
-    ): Promise<void> {
-        const { playerPerformances, fixtureId, matchResult } = data
-
+    /**
+     * API 1: Ingest match data from Cricbuzz and calculate sandbox points.
+     */
+    async ingestMatchPerformance(fixtureId: string, cricbuzzMatchId: string): Promise<void> {
         const [fixture] = await this.db.select().from(fixtures).where(eq(fixtures.id, fixtureId))
+        if (!fixture) throw new NotFoundError('Fixture not found')
+        if (fixture.isProcessed) throw new BadRequestError('Match already published')
 
-        if (!fixture) {
-            throw new BadRequestError('Invalid fixture ID provided.')
-        }
+        // 1. Fetch from Cricbuzz
+        const rawData = await getMatchDetails(cricbuzzMatchId)
+        const statsMap: Map<string, ParsedPlayerStats> = processCricbuzzStats(rawData)
 
-        if (fixture.matchId !== matchId) {
-            throw new BadRequestError('Fixture does not belong to the provided match session.')
-        }
+        // 2. Resolve Players from DB (by cricbuzzPlayerId or Name)
+        const dbPlayers = await this.db.select().from(players)
+        const playerMap = new Map<string, typeof players.$inferSelect>()
 
-        if (fixture.isProcessed) {
-            throw new BadRequestError('This match has already been processed.')
-        }
-
-        const playerIds = playerPerformances.map((performance) => performance.playerId)
-        const existingPlayers = await this.db
-            .select({ id: players.id })
-            .from(players)
-            .where(inArray(players.id, playerIds))
-
-        if (existingPlayers.length !== playerIds.length) {
-            throw new BadRequestError(
-                'One or more player performances reference invalid player IDs.'
-            )
-        }
-
-        const basePointsMap = new Map<string, number>()
-        for (const performance of playerPerformances) {
-            basePointsMap.set(performance.playerId, this.calculateBasePoints(performance.stats))
-        }
+        // We build a resolver that prioritizes ID but falls back to exact name matching
+        dbPlayers.forEach((p) => {
+            if (p.cricbuzzPlayerId) playerMap.set(p.cricbuzzPlayerId, p)
+            playerMap.set(p.name.toLowerCase(), p)
+        })
 
         await this.db.transaction(async (tx) => {
-            const rosterCycleEntries = await tx
-                .select({
-                    rosterCycleId: rosterCycles.id,
-                    userId: fantasyFranchises.userId
+            // 3. Clear existing sandbox data for this fixture
+            await tx.delete(matchStats).where(eq(matchStats.fixtureId, fixtureId))
+            await tx.delete(fixtureUserPoints).where(eq(fixtureUserPoints.fixtureId, fixtureId))
+
+            // 4. Map Cricbuzz stats to our Player objects and calculate Base Points
+            const finalPerformances: Array<{
+                playerId: string
+                stats: ParsedPlayerStats
+                basePoints: number
+            }> = []
+
+            for (const [nameOrId, stat] of statsMap.entries()) {
+                const player = playerMap.get(nameOrId.toLowerCase())
+                if (!player) continue // Log missing player if needed
+
+                const basePoints =
+                    this.scoreService.calculateBattingPoints({
+                        ...stat.batting,
+                        runs: stat.batting.runs,
+                        fours: stat.batting.fours,
+                        sixes: stat.batting.sixes,
+                        ballsFaced: stat.batting.ballsFaced,
+                        isBatsman: player.role === 'Batsman'
+                    }) +
+                    this.scoreService.calculateBowlingPoints({
+                        ...stat.bowling,
+                        wickets: stat.bowling.wickets,
+                        runsConceded: stat.bowling.runsConceded,
+                        oversBowled: stat.bowling.oversBowled,
+                        dots: stat.bowling.dots,
+                        lbwBowledCount: stat.bowling.lbwBowledCount,
+                        maidens: stat.bowling.maidens
+                    }) +
+                    this.scoreService.calculateFieldingPoints(
+                        {
+                            ...stat.fielding,
+                            catches: stat.fielding.catches,
+                            runOutDirect: stat.fielding.runOutDirect,
+                            stumpings: stat.fielding.stumpings
+                        },
+
+                        player.role === 'Wicket-Keeper'
+                    )
+
+                finalPerformances.push({ playerId: player.id, stats: stat, basePoints })
+
+                // Save to raw match_stats
+                await tx.insert(matchStats).values({
+                    fixtureId,
+                    playerId: player.id,
+                    runs: stat.batting.runs,
+                    fours: stat.batting.fours,
+                    sixes: stat.batting.sixes,
+                    wickets: stat.bowling.wickets,
+                    catches: stat.fielding.catches,
+                    runouts: stat.fielding.runOutDirect,
+                    finalPoints: basePoints
                 })
+            }
+
+            // 5. Calculate Points for all User Lineups (Sandbox)
+            const rosterCycleEntries = await tx
+                .select({ rosterCycleId: rosterCycles.id, userId: fantasyFranchises.userId })
                 .from(rosterCycles)
                 .innerJoin(fantasyFranchises, eq(rosterCycles.franchiseId, fantasyFranchises.id))
-                .where(eq(rosterCycles.matchId, matchId))
-
-            const scoringTargets: Array<{
-                lineup: FixtureLineupRecord
-                rosterCycleId: string
-                userId: string
-            }> = []
+                .where(eq(rosterCycles.matchId, fixture.matchId))
 
             for (const entry of rosterCycleEntries) {
                 let lineup = await this.getFixtureLineupForCycle(
@@ -117,203 +152,195 @@ export class AdminService implements IAdminService {
                     entry.rosterCycleId,
                     fixture.id
                 )
-
-                if (!lineup) {
+                if (!lineup)
                     lineup = await this.autoApplyPreviousLineupIfAvailable(
                         tx,
                         entry.rosterCycleId,
                         fixture
                     )
-                }
+                if (!lineup) continue
 
-                if (!lineup) {
-                    continue
-                }
-
-                scoringTargets.push({
-                    lineup,
-                    rosterCycleId: entry.rosterCycleId,
-                    userId: entry.userId
-                })
-            }
-
-            await tx.insert(matchStats).values(
-                playerPerformances.map((performance) => ({
-                    fixtureId,
-                    playerId: performance.playerId,
-                    runs: performance.stats.runs,
-                    fours: performance.stats.fours,
-                    sixes: performance.stats.sixes,
-                    wickets: performance.stats.wickets,
-                    catches: performance.stats.catches,
-                    runouts: performance.stats.runouts,
-                    finalPoints: basePointsMap.get(performance.playerId) ?? 0
-                }))
-            )
-
-            const fixtureUserPointRows: Array<{
-                id: string
-                userId: string
-                totalPoints: number
-            }> = []
-
-            for (const target of scoringTargets) {
                 const lineupPlayers = await tx
                     .select({
                         playerId: fixtureLineupPlayers.playerId,
                         selectionType: fixtureLineupPlayers.selectionType
                     })
                     .from(fixtureLineupPlayers)
-                    .where(eq(fixtureLineupPlayers.fixtureLineupId, target.lineup.id))
+                    .where(eq(fixtureLineupPlayers.fixtureLineupId, lineup.id))
 
-                const rules =
-                    (target.lineup.rulesetId
-                        ? await this.getRulesetConfigById(tx, target.lineup.rulesetId)
-                        : null) ??
-                    (await this.getActiveGlobalRuleset(tx)) ??
-                    DEFAULT_RULESET
-
-                const boosterContext = await this.getBoosterContext(
-                    tx,
-                    target.rosterCycleId,
-                    fixture.id
-                )
-
-                let totalPoints = boosterContext.fixtureLevelBonus
-
+                let userTotal = 0
                 const [userPointsRow] = await tx
                     .insert(fixtureUserPoints)
                     .values({
-                        rosterCycleId: target.rosterCycleId,
+                        rosterCycleId: entry.rosterCycleId,
                         fixtureId: fixture.id,
-                        lineupId: target.lineup.id,
+                        lineupId: lineup.id,
                         totalPoints: 0
                     })
                     .returning()
 
-                const playerBreakdownRows = lineupPlayers.map((lineupPlayer) => {
-                    const isPlaying = lineupPlayer.selectionType === lineupSelectionTypes[0]
-                    const isCaptain = target.lineup.captainId === lineupPlayer.playerId
-                    const isViceCaptain = target.lineup.viceCaptainId === lineupPlayer.playerId
-                    const isImpactPlayer = target.lineup.impactPlayerId === lineupPlayer.playerId
-                    const basePoints = basePointsMap.get(lineupPlayer.playerId) ?? 0
-                    const bonusPoints =
-                        boosterContext.playerBonusMap.get(lineupPlayer.playerId) ?? 0
-                    const multiplier = isPlaying
-                        ? this.resolveLineupMultiplier(
-                              {
-                                  isCaptain,
-                                  isViceCaptain,
-                                  isImpactPlayer
-                              },
-                              rules
-                          )
-                        : 0
+                const playerPointsBatch = lineupPlayers.map((lp) => {
+                    const perf = finalPerformances.find((p) => p.playerId === lp.playerId)
+                    const player = dbPlayers.find((p) => p.id === lp.playerId)
+                    const isPlaying = lp.selectionType === lineupSelectionTypes[0]
 
-                    const finalPoints = (isPlaying ? basePoints * multiplier : 0) + bonusPoints
-                    totalPoints += finalPoints
+                    let fantasyRole:
+                        | 'Normal'
+                        | 'Captain'
+                        | 'ViceCaptain'
+                        | 'ImpactPlayer'
+                        | 'OverseasPlayer' = 'Normal'
+                    if (lp.playerId === lineup?.captainId) fantasyRole = 'Captain'
+                    else if (lp.playerId === lineup?.viceCaptainId) fantasyRole = 'ViceCaptain'
+                    else if (lp.playerId === lineup?.impactPlayerId) fantasyRole = 'ImpactPlayer'
+                    else if (player?.isOverseas) fantasyRole = 'OverseasPlayer'
 
+                    const finalPoints =
+                        isPlaying && perf
+                            ? this.scoreService.calculateFinalPoints({
+                                  batting: perf.stats.batting,
+                                  bowling: perf.stats.bowling,
+                                  fielding: perf.stats.fielding,
+                                  playerRole: player?.role || 'Batsman',
+                                  isWicketKeeper: player?.role === 'Wicket-Keeper',
+                                  fantasyRole,
+                                  isOverseas: player?.isOverseas ?? false
+                              })
+                            : 0
+
+                    userTotal += finalPoints
                     return {
                         fixtureUserPointsId: userPointsRow.id,
-                        playerId: lineupPlayer.playerId,
-                        selectionType: lineupPlayer.selectionType,
-                        isCaptain,
-                        isViceCaptain,
-                        isImpactPlayer,
-                        basePoints,
-                        multiplier,
-                        bonusPoints,
-                        finalPoints,
-                        breakdown: {
-                            selectedInPlayingTwelve: isPlaying,
-                            playerBasePoints: basePoints,
-                            appliedMultiplier: multiplier,
-                            playerBoosterBonus: bonusPoints
-                        }
+                        playerId: lp.playerId,
+                        selectionType: lp.selectionType,
+                        isCaptain: fantasyRole === 'Captain',
+                        isViceCaptain: fantasyRole === 'ViceCaptain',
+                        isImpactPlayer: fantasyRole === 'ImpactPlayer',
+                        basePoints: perf?.basePoints || 0,
+                        finalPoints: finalPoints,
+                        breakdown: { fantasyRole }
                     }
                 })
 
-                await tx.insert(fixtureUserPlayerPoints).values(playerBreakdownRows)
-
+                await tx.insert(fixtureUserPlayerPoints).values(playerPointsBatch)
                 await tx
                     .update(fixtureUserPoints)
-                    .set({
-                        totalPoints,
-                        updatedAt: new Date()
-                    })
+                    .set({ totalPoints: userTotal })
                     .where(eq(fixtureUserPoints.id, userPointsRow.id))
-
-                await tx
-                    .update(fixtureLineups)
-                    .set({
-                        status: 'scored',
-                        lockedAt: target.lineup.lockedAt ?? new Date(),
-                        updatedAt: new Date()
-                    })
-                    .where(eq(fixtureLineups.id, target.lineup.id))
-
-                fixtureUserPointRows.push({
-                    id: userPointsRow.id,
-                    userId: target.userId,
-                    totalPoints
-                })
             }
-
-            const rankedRows = [...fixtureUserPointRows].sort(
-                (a, b) => b.totalPoints - a.totalPoints
-            )
-
-            for (let index = 0; index < rankedRows.length; index++) {
-                await tx
-                    .update(fixtureUserPoints)
-                    .set({
-                        rankSnapshot: index + 1,
-                        updatedAt: new Date()
-                    })
-                    .where(eq(fixtureUserPoints.id, rankedRows[index].id))
-            }
-
-            const userScoreMap = new Map<string, number>()
-            for (const row of fixtureUserPointRows) {
-                userScoreMap.set(row.userId, (userScoreMap.get(row.userId) ?? 0) + row.totalPoints)
-            }
-
-            for (const [userId, score] of userScoreMap.entries()) {
-                await tx
-                    .update(users)
-                    .set({
-                        totalScore: sql`${users.totalScore} + ${score}`,
-                        matchesPlayed: sql`${users.matchesPlayed} + 1`
-                    })
-                    .where(eq(users.id, userId))
-            }
-
-            await tx
-                .update(fixtures)
-                .set({
-                    isProcessed: true,
-                    matchStatus: 'completed',
-                    matchResult
-                })
-                .where(eq(fixtures.id, fixtureId))
         })
     }
 
+    /**
+     * API 2: Finalize the leaderboard and publish results.
+     */
+    async previewPointsForFixture(fixtureId: string): Promise<{
+        fixtureId: string
+        isProcessed: boolean
+        entries: Array<{
+            fixtureUserPointsId: string
+            rosterCycleId: string
+            lineupId: string
+            totalPoints: number
+            rankSnapshot: number | null
+        }>
+    }> {
+        const [fixture] = await this.db.select().from(fixtures).where(eq(fixtures.id, fixtureId))
+        if (!fixture) throw new NotFoundError('Fixture not found')
+
+        const entries = await this.db
+            .select({
+                fixtureUserPointsId: fixtureUserPoints.id,
+                rosterCycleId: fixtureUserPoints.rosterCycleId,
+                lineupId: fixtureUserPoints.lineupId,
+                totalPoints: fixtureUserPoints.totalPoints,
+                rankSnapshot: fixtureUserPoints.rankSnapshot
+            })
+            .from(fixtureUserPoints)
+            .where(eq(fixtureUserPoints.fixtureId, fixtureId))
+            .orderBy(desc(fixtureUserPoints.totalPoints))
+
+        return {
+            fixtureId: fixture.id,
+            isProcessed: fixture.isProcessed,
+            entries
+        }
+    }
+
+    async publishMatchResults(fixtureId: string): Promise<void> {
+        const [fixture] = await this.db.select().from(fixtures).where(eq(fixtures.id, fixtureId))
+        if (!fixture) throw new NotFoundError('Fixture not found')
+        if (fixture.isProcessed) throw new BadRequestError('Already published')
+
+        await this.db.transaction(async (tx) => {
+            // 1. Calculate Rankings
+            const rankedRows = await tx
+                .select()
+                .from(fixtureUserPoints)
+                .where(eq(fixtureUserPoints.fixtureId, fixtureId))
+                .orderBy(desc(fixtureUserPoints.totalPoints))
+
+            for (let i = 0; i < rankedRows.length; i++) {
+                await tx
+                    .update(fixtureUserPoints)
+                    .set({ rankSnapshot: i + 1 })
+                    .where(eq(fixtureUserPoints.id, rankedRows[i].id))
+            }
+
+            // 2. Update Global User Scores
+            const pointResults = await tx
+                .select({ userId: fantasyFranchises.userId, points: fixtureUserPoints.totalPoints })
+                .from(fixtureUserPoints)
+                .innerJoin(rosterCycles, eq(fixtureUserPoints.rosterCycleId, rosterCycles.id))
+                .innerJoin(fantasyFranchises, eq(rosterCycles.franchiseId, fantasyFranchises.id))
+                .where(eq(fixtureUserPoints.fixtureId, fixtureId))
+
+            for (const res of pointResults) {
+                await tx
+                    .update(users)
+                    .set({
+                        totalScore: sql`${users.totalScore} + ${res.points}`,
+                        matchesPlayed: sql`${users.matchesPlayed} + 1`
+                    })
+                    .where(eq(users.id, res.userId))
+            }
+
+            // 3. Mark as Complete
+            await tx
+                .update(fixtures)
+                .set({ isProcessed: true, matchStatus: 'completed' })
+                .where(eq(fixtures.id, fixtureId))
+            await tx
+                .update(fixtureLineups)
+                .set({ status: 'scored' })
+                .where(eq(fixtureLineups.fixtureId, fixtureId))
+        })
+    }
+
+    // ... (rest of the lockMatch, createFixture methods remain similar)
     async lockMatch(matchId: string, isLocked: boolean): Promise<void> {
-        const [targetSession] = await this.db.select().from(matches).where(eq(matches.id, matchId))
+        await this.db.update(matches).set({ isLocked }).where(eq(matches.id, matchId))
+    }
 
-        if (!targetSession) throw new NotFoundError('Session not found')
+    async createMatch(data: CreateMatch): Promise<void> {
+        await this.db.insert(matches).values(data)
+    }
 
-        await this.db.update(matches).set({ isLocked: isLocked }).where(eq(matches.id, matchId))
+    async updateMatch(matchId: string, data: Partial<Match>): Promise<void> {
+        await this.db.update(matches).set(data).where(eq(matches.id, matchId))
+    }
+
+    async getMatchById(matchId: string): Promise<Match> {
+        const [match] = await this.db.select().from(matches).where(eq(matches.id, matchId))
+        if (!match) throw new NotFoundError('Match not found')
+        return match
+    }
+
+    async getMatches(): Promise<Match[]> {
+        return await this.db.select().from(matches)
     }
 
     async createFixture(data: CreateFixture): Promise<void> {
-        const [match] = await this.db.select().from(matches).where(eq(matches.id, data.matchId))
-
-        if (!match) {
-            throw new NotFoundError('Match session not found for this fixture')
-        }
-
         await this.db.insert(fixtures).values({
             ...data,
             lineupLockAt: data.lineupLockAt ?? new Date(data.startTime.getTime() - 60 * 60 * 1000),
@@ -322,52 +349,17 @@ export class AdminService implements IAdminService {
     }
 
     async updateFixture(fixtureId: string, data: Partial<Fixture>): Promise<void> {
-        const [fixture] = await this.db.select().from(fixtures).where(eq(fixtures.id, fixtureId))
-        if (!fixture) {
-            throw new NotFoundError('Fixture not found for this match session')
-        }
-
         await this.db.update(fixtures).set(data).where(eq(fixtures.id, fixtureId))
     }
 
     async getFixtureById(fixtureId: string): Promise<Fixture> {
         const [fixture] = await this.db.select().from(fixtures).where(eq(fixtures.id, fixtureId))
-
-        if (!fixture) {
-            throw new NotFoundError('Fixture not found')
-        }
-        return fixture
+        if (!fixture) throw new NotFoundError('Fixture not found')
+        return fixture as Fixture
     }
 
     async getFixtures(): Promise<Fixture[]> {
-        return await this.db.select().from(fixtures)
-    }
-
-    async createMatch(data: CreateMatch): Promise<void> {
-        await this.db.insert(matches).values(data)
-    }
-
-    async updateMatch(matchId: string, data: Partial<Match>): Promise<void> {
-        const [match] = await this.db.select().from(matches).where(eq(matches.id, matchId))
-        if (!match) {
-            throw new NotFoundError('Match session not found')
-        }
-
-        await this.db.update(matches).set(data).where(eq(matches.id, matchId))
-    }
-
-    async getMatchById(matchId: string): Promise<Match> {
-        const [match] = await this.db.select().from(matches).where(eq(matches.id, matchId))
-
-        if (!match) {
-            throw new NotFoundError('Match not found')
-        }
-
-        return match
-    }
-
-    async getMatches(): Promise<Match[]> {
-        return await this.db.select().from(matches)
+        return (await this.db.select().from(fixtures)) as Fixture[]
     }
 
     private async getFixtureLineupForCycle(
@@ -384,7 +376,6 @@ export class AdminService implements IAdminService {
                     eq(fixtureLineups.fixtureId, fixtureId)
                 )
             )
-
         return lineup ?? null
     }
 
@@ -396,19 +387,11 @@ export class AdminService implements IAdminService {
         const previousLineups = await executor
             .select({
                 id: fixtureLineups.id,
-                rosterCycleId: fixtureLineups.rosterCycleId,
                 fixtureId: fixtureLineups.fixtureId,
-                rulesetId: fixtureLineups.rulesetId,
-                status: fixtureLineups.status,
                 captainId: fixtureLineups.captainId,
                 viceCaptainId: fixtureLineups.viceCaptainId,
                 impactPlayerId: fixtureLineups.impactPlayerId,
-                submittedAt: fixtureLineups.submittedAt,
-                lockedAt: fixtureLineups.lockedAt,
-                lineupLockAt: fixtureLineups.lineupLockAt,
-                autoAppliedFromLineupId: fixtureLineups.autoAppliedFromLineupId,
-                createdAt: fixtureLineups.createdAt,
-                updatedAt: fixtureLineups.updatedAt
+                rulesetId: fixtureLineups.rulesetId
             })
             .from(fixtureLineups)
             .innerJoin(fixtures, eq(fixtureLineups.fixtureId, fixtures.id))
@@ -420,134 +403,37 @@ export class AdminService implements IAdminService {
             )
             .orderBy(desc(fixtures.startTime))
 
-        const previousLineup = previousLineups.find(
-            (lineup: (typeof previousLineups)[number]) => lineup.fixtureId !== fixture.id
-        )
+        const prev = previousLineups.find((l) => l.fixtureId !== fixture.id)
+        if (!prev) return null
 
-        if (!previousLineup) {
-            return null
-        }
-
-        const previousPlayers = await executor
-            .select({
-                playerId: fixtureLineupPlayers.playerId,
-                selectionType: fixtureLineupPlayers.selectionType
-            })
+        const prevPlayers = await executor
+            .select()
             .from(fixtureLineupPlayers)
-            .where(eq(fixtureLineupPlayers.fixtureLineupId, previousLineup.id))
-
-        const [createdLineup] = await executor
+            .where(eq(fixtureLineupPlayers.fixtureLineupId, prev.id))
+        const [created] = await executor
             .insert(fixtureLineups)
             .values({
                 rosterCycleId,
                 fixtureId: fixture.id,
-                rulesetId: previousLineup.rulesetId,
+                rulesetId: prev.rulesetId,
                 status: 'locked',
-                captainId: previousLineup.captainId,
-                viceCaptainId: previousLineup.viceCaptainId,
-                impactPlayerId: previousLineup.impactPlayerId,
+                captainId: prev.captainId,
+                viceCaptainId: prev.viceCaptainId,
+                impactPlayerId: prev.impactPlayerId,
                 submittedAt: new Date(),
                 lockedAt: new Date(),
                 lineupLockAt:
-                    fixture.lineupLockAt ?? new Date(fixture.startTime.getTime() - 60 * 60 * 1000),
-                autoAppliedFromLineupId: previousLineup.id
+                    fixture.lineupLockAt || new Date(fixture.startTime.getTime() - 3600000)
             })
             .returning()
 
         await executor.insert(fixtureLineupPlayers).values(
-            previousPlayers.map((player: (typeof previousPlayers)[number]) => ({
-                fixtureLineupId: createdLineup.id,
-                playerId: player.playerId,
-                selectionType: player.selectionType
+            prevPlayers.map((p) => ({
+                fixtureLineupId: created.id,
+                playerId: p.playerId,
+                selectionType: p.selectionType
             }))
         )
-
-        return createdLineup
-    }
-
-    private async getActiveGlobalRuleset(
-        executor: DatabaseConnection
-    ): Promise<RulesetConfig | null> {
-        const [ruleset] = await executor
-            .select()
-            .from(rulesets)
-            .where(and(eq(rulesets.scope, 'global'), eq(rulesets.isActive, true)))
-            .orderBy(desc(rulesets.createdAt))
-
-        return ruleset?.config ?? null
-    }
-
-    private async getRulesetConfigById(
-        executor: DatabaseConnection,
-        rulesetId: string
-    ): Promise<RulesetConfig | null> {
-        const [ruleset] = await executor.select().from(rulesets).where(eq(rulesets.id, rulesetId))
-
-        return ruleset?.config ?? null
-    }
-
-    private async getBoosterContext(
-        executor: DatabaseConnection,
-        rosterCycleId: string,
-        fixtureId: string
-    ) {
-        const awards = await executor
-            .select({
-                playerId: fixtureBoosterAwards.playerId,
-                pointsAwarded: fixtureBoosterAwards.pointsAwarded
-            })
-            .from(fixtureBoosterAwards)
-            .where(
-                and(
-                    eq(fixtureBoosterAwards.rosterCycleId, rosterCycleId),
-                    eq(fixtureBoosterAwards.fixtureId, fixtureId)
-                )
-            )
-
-        const playerBonusMap = new Map<string, number>()
-        let fixtureLevelBonus = 0
-
-        for (const award of awards) {
-            if (!award.playerId) {
-                fixtureLevelBonus += award.pointsAwarded
-                continue
-            }
-
-            playerBonusMap.set(
-                award.playerId,
-                (playerBonusMap.get(award.playerId) ?? 0) + award.pointsAwarded
-            )
-        }
-
-        return { playerBonusMap, fixtureLevelBonus }
-    }
-
-    private resolveLineupMultiplier(
-        roles: { isCaptain: boolean; isViceCaptain: boolean; isImpactPlayer: boolean },
-        rules: RulesetConfig
-    ): number {
-        if (roles.isCaptain) return rules.multipliers.captain
-        if (roles.isViceCaptain) return rules.multipliers.viceCaptain
-        if (roles.isImpactPlayer) return rules.multipliers.impactPlayer
-        return 1
-    }
-
-    private calculateBasePoints(stats: PlayerStats): number {
-        let points = 0
-
-        points += stats.runs * 1
-        points += stats.fours * 6
-        points += stats.sixes * 10
-        points += stats.catches * 30
-        points += stats.runouts * 50
-
-        let wicketPoints = stats.wickets * 15
-        if (stats.wickets >= 5) {
-            wicketPoints *= 3
-        }
-
-        points += wicketPoints
-
-        return points
+        return created
     }
 }
