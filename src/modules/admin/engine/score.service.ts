@@ -226,7 +226,7 @@ export class ScoreService {
         }
 
         if (data.maidens) {
-            total += data.maidens * 10
+            total += data.maidens * 100
         }
 
         if (data.lbwBowledCount) {
