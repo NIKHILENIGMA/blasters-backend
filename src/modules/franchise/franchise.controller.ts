@@ -10,6 +10,7 @@ import {
     FixtureIdParamSchema,
     MatchIdParamSchema,
     SaveFixtureLineupSchema,
+    SaveSquadQuerySchema,
     SaveSquadSchema
 } from './franchise.validator'
 
@@ -96,9 +97,10 @@ export class FranchiseController extends BaseController {
             }
 
             const params = ValidationService.validateParams(req.params, MatchIdParamSchema)
+            const query = ValidationService.validateQuery(req.query, SaveSquadQuerySchema)
             const body = ValidationService.validateBody(req.body, SaveSquadSchema)
 
-            await this.service.saveSquad(userId, {
+            await this.service.saveSquad(userId, query.isDraft, {
                 matchId: params.matchId,
                 playerIds: body.playerIds
             })

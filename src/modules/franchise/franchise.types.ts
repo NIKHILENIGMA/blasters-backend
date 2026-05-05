@@ -53,17 +53,17 @@ export interface GetFixtureLineupResponse {
         matchResult: string | null
         matchStatus: 'scheduled' | 'live' | 'completed' | null
     }
-    rosterCycle: {
-        id: string
-        createdAt: Date
-        updatedAt: Date
-        matchId: string
-        franchiseId: string
-        budgetTotal: number
-        budgetUsed: number
-        walletResetAmount: number
-    }
-    squadPlayers: RosterCyclePlayerRecord[]
+    // rosterCycle: {
+    //     id: string
+    //     createdAt: Date
+    //     updatedAt: Date
+    //     matchId: string
+    //     franchiseId: string
+    //     budgetTotal: number
+    //     budgetUsed: number
+    //     walletResetAmount: number
+    // }
+    // squadPlayers: RosterCyclePlayerRecord[]
     lineup: {
         id: string
         createdAt: Date

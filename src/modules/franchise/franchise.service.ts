@@ -8,6 +8,7 @@ import {
     lineupSelectionTypes,
     matches,
     players,
+    ROASTER_STATUS,
     rosterCyclePlayers,
     rosterCycles,
     rulesets,
@@ -73,7 +74,7 @@ export interface IFranchiseService {
     createFranchise(userId: string, data: CreateFranchiseInput): Promise<void>
     getFranchiseOverview(userId: string): Promise<unknown>
     getCurrentRosterCycle(userId: string): Promise<unknown>
-    saveSquad(userId: string, data: SaveSquadInput): Promise<void>
+    saveSquad(userId: string, isDraft: boolean, data: SaveSquadInput): Promise<void>
     getUpcomingFixtures(userId: string): Promise<GetUpcomingFixturesResponse>
     getFixtureLineup(userId: string, fixtureId: string): Promise<unknown>
     saveFixtureLineup(userId: string, data: SaveFixtureLineupInput): Promise<void>
@@ -166,7 +167,7 @@ export class FranchiseService implements IFranchiseService {
         }
     }
 
-    async saveSquad(userId: string, data: SaveSquadInput): Promise<void> {
+    async saveSquad(userId: string, isDraft: boolean, data: SaveSquadInput): Promise<void> {
         const franchise = await this.requireFranchise(userId)
         const match = await this.requireMatch(data.matchId)
 
@@ -178,12 +179,19 @@ export class FranchiseService implements IFranchiseService {
             .from(players)
             .where(inArray(players.id, data.playerIds))
 
-        if (selectedPlayers.length !== 25) {
+        // Enforce exactly 25 players for published squads to ensure users are selecting a complete squad within the constraints, but allow draft squads to be saved with less than 25 players to enable gradual squad building and flexibility during the buy window
+        if (!isDraft && selectedPlayers.length !== 25) {
             throw new BadRequestError('One or more selected squad players are invalid')
+        }
+
+        // Allow saving draft squads with less than 25 players to enable gradual squad building, but enforce a maximum of 25 players to prevent overspending and ensure users are building towards a valid squad
+        if (selectedPlayers.length !== data.playerIds.length) {
+            throw new BadRequestError('Draft squads cannot contain more than 25 players')
         }
 
         const totalCost = selectedPlayers.reduce((sum, player) => sum + player.cost, 0)
 
+        // Enfore budget limit on both draft and published squads to prevent overspending in drafts and ensure published squads are always within budget
         if (totalCost > 2000) {
             throw new BadRequestError('Total squad cost cannot exceed 2000 credits')
         }
@@ -202,6 +210,7 @@ export class FranchiseService implements IFranchiseService {
                         franchiseId: franchise.id,
                         matchId: match.id,
                         budgetTotal: 2000,
+                        status: isDraft ? ROASTER_STATUS.DRAFT : ROASTER_STATUS.PUBLISHED,
                         budgetUsed: totalCost,
                         walletResetAmount: 2000
                     })
@@ -212,6 +221,7 @@ export class FranchiseService implements IFranchiseService {
                     .update(rosterCycles)
                     .set({
                         budgetUsed: totalCost,
+                        status: isDraft ? ROASTER_STATUS.DRAFT : ROASTER_STATUS.PUBLISHED,
                         updatedAt: new Date()
                     })
                     .where(eq(rosterCycles.id, rosterCycle.id))
@@ -277,13 +287,10 @@ export class FranchiseService implements IFranchiseService {
             )
         }
 
-        const squadPlayers = await this.getRosterCyclePlayers(rosterCycle.id)
         const lineupPlayers = lineup ? await this.getFixtureLineupPlayers(lineup.id) : []
 
         return {
             fixture,
-            rosterCycle,
-            squadPlayers,
             lineup,
             lineupPlayers
         }

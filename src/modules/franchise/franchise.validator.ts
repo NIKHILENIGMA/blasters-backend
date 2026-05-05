@@ -9,6 +9,13 @@ export const MatchIdParamSchema = z.object({
     matchId: z.uuid('Match ID must be a valid UUID')
 })
 
+export const SaveSquadQuerySchema = z.object({
+    isDraft: z
+        .string()
+        .transform((val) => val === 'true')
+        .refine((val) => typeof val === 'boolean', 'isDraft must be a valid boolean string')
+})
+
 export const FixtureIdParamSchema = z.object({
     fixtureId: z.string().min(1, 'Fixture ID is required')
 })
@@ -16,7 +23,7 @@ export const FixtureIdParamSchema = z.object({
 export const SaveSquadSchema = z.object({
     playerIds: z
         .array(z.uuid('Each player ID must be a valid UUID'))
-        .length(25, 'Exactly 25 player IDs are required')
+        .min(1, 'At least one player ID is required')
 })
 
 export const SaveFixtureLineupSchema = z.object({
