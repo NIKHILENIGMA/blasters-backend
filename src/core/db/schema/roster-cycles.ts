@@ -1,10 +1,20 @@
-import { pgTable, real, timestamp, uuid, uniqueIndex } from 'drizzle-orm/pg-core'
+import { pgTable, real, timestamp, uuid, uniqueIndex, pgEnum } from 'drizzle-orm/pg-core'
 
 import { fantasyFranchises } from './fantasy-franchises'
 import { matches } from './matches'
 import { players } from './players'
 import { InferSelectModel } from 'drizzle-orm/table'
 import { InferInsertModel } from 'drizzle-orm'
+
+export const ROASTER_STATUS = {
+    DRAFT: 'draft',
+    PUBLISHED: 'published'
+}
+
+export const roasterStatusEnum = pgEnum('roster_cycle_status', [
+    ROASTER_STATUS.DRAFT,
+    ROASTER_STATUS.PUBLISHED
+])
 
 export const rosterCycles = pgTable(
     'roster_cycles',
@@ -17,6 +27,7 @@ export const rosterCycles = pgTable(
             .references(() => matches.id, { onDelete: 'cascade' })
             .notNull(),
         budgetTotal: real('budget_total').default(2000).notNull(),
+        status: roasterStatusEnum('status').default(ROASTER_STATUS.DRAFT).notNull(),
         budgetUsed: real('budget_used').default(0).notNull(),
         walletResetAmount: real('wallet_reset_amount').default(2000).notNull(),
         createdAt: timestamp('created_at').defaultNow().notNull(),
