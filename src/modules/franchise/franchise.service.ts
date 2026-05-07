@@ -4,8 +4,11 @@ import {
     fantasyFranchises,
     fixtureLineupPlayers,
     fixtureLineups,
+    fixtureUserPlayerPoints,
+    fixtureUserPoints,
     fixtures,
     lineupSelectionTypes,
+    matchStats,
     matches,
     players,
     ROASTER_STATUS,
@@ -293,10 +296,19 @@ export class FranchiseService implements IFranchiseService {
 
         const lineupPlayers = lineup ? await this.getFixtureLineupPlayers(lineup.id) : []
 
+        // Fetch overall match points for the user
+        const [matchPoints] = lineup
+            ? await this.db
+                  .select()
+                  .from(fixtureUserPoints)
+                  .where(eq(fixtureUserPoints.lineupId, lineup.id))
+            : []
+
         return {
             fixture,
             lineup,
-            lineupPlayers
+            lineupPlayers,
+            matchPoints: matchPoints ?? null
         }
     }
 
@@ -523,10 +535,49 @@ export class FranchiseService implements IFranchiseService {
                 isOverseas: players.isOverseas,
                 cost: players.cost,
                 profileImageUrl: players.profileImageUrl,
-                selectionType: fixtureLineupPlayers.selectionType
+                selectionType: fixtureLineupPlayers.selectionType,
+                runs: matchStats.runs,
+                fours: matchStats.fours,
+                sixes: matchStats.sixes,
+                wickets: matchStats.wickets,
+                catches: matchStats.catches,
+                runouts: matchStats.runouts,
+                // Joined point data
+                basePoints: fixtureUserPlayerPoints.basePoints,
+                multiplier: fixtureUserPlayerPoints.multiplier,
+                bonusPoints: fixtureUserPlayerPoints.bonusPoints,
+                finalPoints: fixtureUserPlayerPoints.finalPoints,
+                breakdown: fixtureUserPlayerPoints.breakdown
             })
             .from(fixtureLineupPlayers)
             .innerJoin(players, eq(fixtureLineupPlayers.playerId, players.id))
+            .leftJoin(
+                matchStats,
+                and(
+                    eq(matchStats.playerId, players.id),
+                    inArray(
+                        matchStats.fixtureId,
+                        this.db
+                            .select({ fixtureId: fixtureLineups.fixtureId })
+                            .from(fixtureLineups)
+                            .where(eq(fixtureLineups.id, fixtureLineupId))
+                    )
+                )
+            )
+            .leftJoin(
+                fixtureUserPlayerPoints,
+                and(
+                    eq(fixtureUserPlayerPoints.playerId, players.id),
+                    // Use a subquery to correctly link to the fixtureUserPoints associated with this lineup
+                    inArray(
+                        fixtureUserPlayerPoints.fixtureUserPointsId,
+                        this.db
+                            .select({ id: fixtureUserPoints.id })
+                            .from(fixtureUserPoints)
+                            .where(eq(fixtureUserPoints.lineupId, fixtureLineupId))
+                    )
+                )
+            )
             .where(eq(fixtureLineupPlayers.fixtureLineupId, fixtureLineupId))
     }
 
