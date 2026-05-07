@@ -22,6 +22,7 @@ import {
     GetFranchiseOverviewResponse,
     GetUpcomingFixturesResponse
 } from './franchise.types'
+import { logger } from '@/config'
 
 const DEFAULT_RULESET: RulesetConfig = {
     totalPlayers: 12,
@@ -244,7 +245,7 @@ export class FranchiseService implements IFranchiseService {
     async getUpcomingFixtures(userId: string): Promise<GetUpcomingFixturesResponse> {
         const franchise = await this.requireFranchise(userId)
         const activeMatch = await this.getActiveMatchWindow()
-
+        // logger.info(`Franchise ${franchise.id} fetching upcoming fixtures for active match ${activeMatch?.id}`)
         if (!activeMatch) {
             return { fixtures: [] }
         }
@@ -255,6 +256,9 @@ export class FranchiseService implements IFranchiseService {
         )
 
         if (!rosterCycle) {
+            logger.info(
+                `Franchise ${franchise.id} has no roster cycle for active match ${activeMatch.id}`
+            )
             return { fixtures: [] }
         }
 
@@ -454,7 +458,6 @@ export class FranchiseService implements IFranchiseService {
             .from(matches)
             .where(and(lte(matches.startTime, now), gte(matches.endTime, now)))
             .orderBy(desc(matches.startTime))
-
         return activeMatch ?? null
     }
 
