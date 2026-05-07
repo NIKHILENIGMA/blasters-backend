@@ -92,3 +92,66 @@ export type PlayerScoringBreakdown = {
     totalBasePoints: number
     finalPoints: number
 }
+
+export type AdminFixtureTeamsResponse = {
+    fixture: Fixture
+    entries: Array<{
+        rosterCycleId: string
+        franchise: {
+            id: string
+            userId: string
+            teamName: string
+            teamLogo: string
+        }
+        user: {
+            id: string
+            username: string
+            firstName: string
+            lastName: string
+            email: string
+            profileImage: string | null
+        }
+        lineup: {
+            id: string
+            createdAt: Date
+            updatedAt: Date
+            lineupLockAt: Date | null
+            rosterCycleId: string
+            fixtureId: string
+            rulesetId: string | null
+            status: 'draft' | 'locked' | 'scored'
+            captainId: string
+            viceCaptainId: string
+            impactPlayerId: string
+            submittedAt: Date
+            lockedAt: Date | null
+            autoAppliedFromLineupId: string | null
+        } | null
+        lineupPlayers: Array<{
+            id: string
+            name: string
+            role: 'Batsman' | 'Bowler' | 'All-Rounder' | 'Wicket-Keeper'
+            iplTeam: string
+            isOverseas: boolean
+            cost: number
+            profileImageUrl: string
+            selectionType: 'PLAYING' | 'SUBSTITUTE'
+            runs?: number | null
+            fours?: number | null
+            sixes?: number | null
+            wickets?: number | null
+            catches?: number | null
+            runouts?: number | null
+            basePoints?: number | null
+            multiplier?: number | null
+            bonusPoints?: number | null
+            finalPoints?: number | null
+            breakdown?: Record<string, unknown> | null
+        }>
+        matchPoints: {
+            id: string
+            totalPoints: number
+            rankSnapshot: number | null
+        } | null
+    }>
+}

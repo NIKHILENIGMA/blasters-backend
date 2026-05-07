@@ -1,4 +1,4 @@
-import { and, desc, eq, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, lte, or, sql } from 'drizzle-orm'
 
 import {
     fantasyFranchises,
@@ -8,6 +8,7 @@ import {
     fixtureUserPoints,
     fixtures,
     lineupSelectionTypes,
+    matchStats,
     matches,
     players,
     rosterCycles,
@@ -16,8 +17,7 @@ import {
 import { DatabaseConnection } from '@/core/db/service/database.service'
 import { BadRequestError, NotFoundError } from '@/util'
 
-import { Fixture, GetFixturesQuery, Match } from './admin.types'
-import { matchStats } from '@/core/db/schema/match-stats'
+import { AdminFixtureTeamsResponse, Fixture, GetFixturesQuery, Match } from './admin.types'
 import { CreateFixture, CreateMatch } from '../team/team.types'
 import { ScoreService } from './engine/score.service'
 import { getMatchDetails, ParsedPlayerStats, processCricbuzzStats } from '@/lib/get-match-stats'
@@ -49,6 +49,7 @@ export interface IAdminService {
     updateFixture(fixtureId: string, data: Partial<Fixture>): Promise<void>
     getFixtureById(fixtureId: string): Promise<Fixture>
     getFixtures(query: GetFixturesQuery): Promise<Fixture[]>
+    getFixtureTeams(fixtureId: string): Promise<AdminFixtureTeamsResponse>
 }
 
 export class AdminService implements IAdminService {
@@ -404,6 +405,86 @@ export class AdminService implements IAdminService {
         return fixture as Fixture
     }
 
+    async getFixtureTeams(fixtureId: string): Promise<AdminFixtureTeamsResponse> {
+        const fixture = await this.getFixtureById(fixtureId)
+
+        const rosterCycleEntries = await this.db
+            .select({
+                rosterCycleId: rosterCycles.id,
+                franchiseId: fantasyFranchises.id,
+                franchiseUserId: fantasyFranchises.userId,
+                teamName: fantasyFranchises.teamName,
+                teamLogo: fantasyFranchises.teamLogo,
+                userId: users.id,
+                username: users.username,
+                firstName: users.firstName,
+                lastName: users.lastName,
+                email: users.email,
+                profileImage: users.profileImage
+            })
+            .from(rosterCycles)
+            .innerJoin(fantasyFranchises, eq(rosterCycles.franchiseId, fantasyFranchises.id))
+            .innerJoin(users, eq(fantasyFranchises.userId, users.id))
+            .where(eq(rosterCycles.matchId, fixture.matchId))
+
+        const entries = await Promise.all(
+            rosterCycleEntries.map(async (entry) => {
+                let lineup = await this.getFixtureLineupForCycle(
+                    this.db,
+                    entry.rosterCycleId,
+                    fixture.id
+                )
+
+                if (!lineup && this.isFixtureLocked(fixture)) {
+                    lineup = await this.autoApplyPreviousLineupIfAvailable(
+                        this.db,
+                        entry.rosterCycleId,
+                        fixture
+                    )
+                }
+
+                const lineupPlayers = lineup ? await this.getFixtureLineupPlayers(lineup.id) : []
+
+                const [matchPoints] = lineup
+                    ? await this.db
+                          .select({
+                              id: fixtureUserPoints.id,
+                              totalPoints: fixtureUserPoints.totalPoints,
+                              rankSnapshot: fixtureUserPoints.rankSnapshot
+                          })
+                          .from(fixtureUserPoints)
+                          .where(eq(fixtureUserPoints.lineupId, lineup.id))
+                    : []
+
+                return {
+                    rosterCycleId: entry.rosterCycleId,
+                    franchise: {
+                        id: entry.franchiseId,
+                        userId: entry.franchiseUserId,
+                        teamName: entry.teamName,
+                        teamLogo: entry.teamLogo
+                    },
+                    user: {
+                        id: entry.userId,
+                        username: entry.username,
+                        firstName: entry.firstName,
+                        lastName: entry.lastName,
+                        email: entry.email,
+                        profileImage: entry.profileImage
+                    },
+                    lineup,
+                    lineupPlayers,
+                    matchPoints: matchPoints ?? null
+                }
+            })
+        )
+
+        return {
+            fixture,
+            entries
+        }
+    }
+
     async getFixtures(query: GetFixturesQuery): Promise<Fixture[]> {
         const status = query.status ?? query.matchStatus
         const conditions = []
@@ -492,5 +573,66 @@ export class AdminService implements IAdminService {
             }))
         )
         return created
+    }
+
+    private async getFixtureLineupPlayers(fixtureLineupId: string) {
+        return this.db
+            .select({
+                id: players.id,
+                name: players.name,
+                role: players.role,
+                iplTeam: players.iplTeam,
+                isOverseas: players.isOverseas,
+                cost: players.cost,
+                profileImageUrl: players.profileImageUrl,
+                selectionType: fixtureLineupPlayers.selectionType,
+                runs: matchStats.runs,
+                fours: matchStats.fours,
+                sixes: matchStats.sixes,
+                wickets: matchStats.wickets,
+                catches: matchStats.catches,
+                runouts: matchStats.runouts,
+                basePoints: fixtureUserPlayerPoints.basePoints,
+                multiplier: fixtureUserPlayerPoints.multiplier,
+                bonusPoints: fixtureUserPlayerPoints.bonusPoints,
+                finalPoints: fixtureUserPlayerPoints.finalPoints,
+                breakdown: fixtureUserPlayerPoints.breakdown
+            })
+            .from(fixtureLineupPlayers)
+            .innerJoin(players, eq(fixtureLineupPlayers.playerId, players.id))
+            .leftJoin(
+                matchStats,
+                and(
+                    eq(matchStats.playerId, players.id),
+                    inArray(
+                        matchStats.fixtureId,
+                        this.db
+                            .select({ fixtureId: fixtureLineups.fixtureId })
+                            .from(fixtureLineups)
+                            .where(eq(fixtureLineups.id, fixtureLineupId))
+                    )
+                )
+            )
+            .leftJoin(
+                fixtureUserPlayerPoints,
+                and(
+                    eq(fixtureUserPlayerPoints.playerId, players.id),
+                    inArray(
+                        fixtureUserPlayerPoints.fixtureUserPointsId,
+                        this.db
+                            .select({ id: fixtureUserPoints.id })
+                            .from(fixtureUserPoints)
+                            .where(eq(fixtureUserPoints.lineupId, fixtureLineupId))
+                    )
+                )
+            )
+            .where(eq(fixtureLineupPlayers.fixtureLineupId, fixtureLineupId))
+    }
+
+    private isFixtureLocked(fixture: FixtureRecord) {
+        const now = new Date()
+        const lockAt =
+            fixture.lineupLockAt ?? new Date(fixture.startTime.getTime() - 60 * 60 * 1000)
+        return now > lockAt
     }
 }

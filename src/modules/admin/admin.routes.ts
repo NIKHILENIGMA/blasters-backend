@@ -17,6 +17,8 @@ router
     .patch(clerkMiddleware, isAdmin, adminController.updateFixture)
     .get(clerkMiddleware, isAdmin, adminController.getFixtureById)
 
+router.get('/fixtures/:fixtureId/teams', clerkMiddleware, isAdmin, adminController.getFixtureTeams)
+
 router
     .route('/fixtures/:fixtureId/calculate')
     .post(clerkMiddleware, isAdmin, adminController.calculatePoints)

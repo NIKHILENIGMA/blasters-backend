@@ -53,6 +53,11 @@ export const CreateFixtureSchema = z.object({
     matchStatus: z.enum(['scheduled', 'live', 'completed']).optional()
 })
 
-export const UpdateFixtureStatusSchema = z.object({
-    matchStatus: z.enum(['scheduled', 'live', 'completed'])
-})
+export const UpdateFixtureSchema = z
+    .object({
+        matchStatus: z.enum(['scheduled', 'live', 'completed']).optional(),
+        lineupLockAt: z.coerce.date().nullable().optional()
+    })
+    .refine((data) => data.matchStatus !== undefined || data.lineupLockAt !== undefined, {
+        message: 'At least one fixture field must be provided'
+    })

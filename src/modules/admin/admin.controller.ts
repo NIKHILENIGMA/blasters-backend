@@ -12,7 +12,7 @@ import {
     IngestMatchPerformanceSchema,
     LockMatchSchema,
     MatchIdParamSchema,
-    UpdateFixtureStatusSchema
+    UpdateFixtureSchema
 } from './admin.validator'
 
 export class AdminController extends BaseController {
@@ -133,7 +133,7 @@ export class AdminController extends BaseController {
 
             const params = ValidationService.validateParams(req.params, FixtureIdParamSchema)
 
-            const body = ValidationService.validateBody(req.body, UpdateFixtureStatusSchema)
+            const body = ValidationService.validateBody(req.body, UpdateFixtureSchema)
 
             await this.service.updateFixture(params.fixtureId, body)
 
@@ -160,6 +160,24 @@ export class AdminController extends BaseController {
                 statusCode: STATUS_CODE.OK,
                 message: 'Fixture retrieved successfully',
                 data: fixture
+            })
+        })
+    }
+
+    getFixtureTeams = async (req: Request, res: Response, next: NextFunction) => {
+        return this.handleRequest(req, res, next, async () => {
+            const userId = req.user?.id
+            if (!userId) {
+                throw new UnauthorizedError('User not authenticated')
+            }
+
+            const params = ValidationService.validateParams(req.params, FixtureIdParamSchema)
+            const fixtureTeams = await this.service.getFixtureTeams(params.fixtureId)
+
+            return this.createResponse({
+                statusCode: STATUS_CODE.OK,
+                message: 'Fixture teams retrieved successfully',
+                data: fixtureTeams
             })
         })
     }
