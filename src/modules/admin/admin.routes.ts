@@ -7,28 +7,42 @@ import { adminController } from './admin.module'
 
 const router = Router()
 
-// Apply middleware to all routes
-router.use(clerkMiddleware, isAdmin)
-
-router.route('/fixtures').post(adminController.createFixture).get(adminController.getFixtures)
+router
+    .route('/fixtures')
+    .get(clerkMiddleware, adminController.getFixtures) // Allow non-admins to view fixtures
+    .post(clerkMiddleware, isAdmin, adminController.createFixture)
 
 router
     .route('/fixtures/:fixtureId')
-    .patch(adminController.updateFixture)
-    .get(adminController.getFixtureById)
+    .patch(clerkMiddleware, isAdmin, adminController.updateFixture)
+    .get(clerkMiddleware, isAdmin, adminController.getFixtureById)
 
-router.route('/fixtures/:fixtureId/calculate').post(adminController.calculatePoints)
-router.route('/fixtures/:fixtureId/preview').get(adminController.previewPoints)
-router.route('/fixtures/:fixtureId/publish').post(adminController.publishPoints)
+router
+    .route('/fixtures/:fixtureId/calculate')
+    .post(clerkMiddleware, isAdmin, adminController.calculatePoints)
+router
+    .route('/fixtures/:fixtureId/preview')
+    .get(clerkMiddleware, isAdmin, adminController.previewPoints)
+router
+    .route('/fixtures/:fixtureId/publish')
+    .post(clerkMiddleware, isAdmin, adminController.publishPoints)
 
-router.route('/matches').post(adminController.createMatch).get(adminController.getMatches)
+router
+    .route('/matches')
+    .post(clerkMiddleware, isAdmin, adminController.createMatch)
+    .get(clerkMiddleware, isAdmin, adminController.getMatches)
 
 router
     .route('/matches/:matchId')
-    .patch(adminController.updateMatch)
-    .get(adminController.getMatchById)
+    .patch(clerkMiddleware, isAdmin, adminController.updateMatch)
+    .get(clerkMiddleware, isAdmin, adminController.getMatchById)
 
-router.post('/matches/:matchId/process', adminController.processMatchPerformance)
-router.patch('/matches/:matchId/toggle-lock', adminController.toggleLock)
+router.post(
+    '/matches/:matchId/process',
+    clerkMiddleware,
+    isAdmin,
+    adminController.processMatchPerformance
+)
+router.patch('/matches/:matchId/toggle-lock', clerkMiddleware, isAdmin, adminController.toggleLock)
 
 export default router

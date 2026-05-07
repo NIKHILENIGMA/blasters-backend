@@ -8,9 +8,11 @@ import {
     CreateFixtureSchema,
     CreateMatchSchema,
     FixtureIdParamSchema,
+    GetFixturesQuerySchema,
     IngestMatchPerformanceSchema,
     LockMatchSchema,
-    MatchIdParamSchema
+    MatchIdParamSchema,
+    UpdateFixtureStatusSchema
 } from './admin.validator'
 
 export class AdminController extends BaseController {
@@ -131,7 +133,7 @@ export class AdminController extends BaseController {
 
             const params = ValidationService.validateParams(req.params, FixtureIdParamSchema)
 
-            const body = ValidationService.validateBody(req.body, CreateFixtureSchema)
+            const body = ValidationService.validateBody(req.body, UpdateFixtureStatusSchema)
 
             await this.service.updateFixture(params.fixtureId, body)
 
@@ -168,8 +170,8 @@ export class AdminController extends BaseController {
             if (!userId) {
                 throw new UnauthorizedError('User not authenticated')
             }
-
-            const fixtures = await this.service.getFixtures()
+            const query = ValidationService.validateQuery(req.query, GetFixturesQuerySchema)
+            const fixtures = await this.service.getFixtures(query)
 
             return this.createResponse({
                 statusCode: STATUS_CODE.OK,

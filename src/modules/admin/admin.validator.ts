@@ -8,6 +8,22 @@ export const FixtureIdParamSchema = z.object({
     fixtureId: z.string()
 })
 
+export const GetFixturesQuerySchema = z.object({
+    status: z.preprocess(
+        (value) => (value === '' ? undefined : value),
+        z.enum(['scheduled', 'live', 'completed']).optional()
+    ),
+    matchStatus: z.preprocess(
+        (value) => (value === '' ? undefined : value),
+        z.enum(['scheduled', 'live', 'completed']).optional()
+    ),
+    team: z.enum(['CSK', 'MI', 'RCB', 'KKR', 'SRH', 'DC', 'GL', 'RPS']).optional(),
+    matchId: z.preprocess(
+        (value) => (value === '' ? undefined : value),
+        z.string().uuid().optional()
+    )
+})
+
 export const IngestMatchPerformanceSchema = z.object({
     cricbuzzMatchId: z.string().min(1, 'Cricbuzz Match ID is required')
 })
@@ -27,7 +43,7 @@ export const CreateMatchSchema = z.object({
 
 export const CreateFixtureSchema = z.object({
     id: z.string().min(1, 'Fixture ID is required'),
-    matchId: z.string().uuid('Match ID must be a valid UUID'),
+    matchId: z.uuid('Match ID must be a valid UUID'),
     teamA: z.string().min(1, 'Team A is required'),
     teamB: z.string().min(1, 'Team B is required'),
     startTime: z.coerce.date(),
@@ -35,4 +51,8 @@ export const CreateFixtureSchema = z.object({
     matchNumber: z.string().optional(),
     venueId: z.string().optional(),
     matchStatus: z.enum(['scheduled', 'live', 'completed']).optional()
+})
+
+export const UpdateFixtureStatusSchema = z.object({
+    matchStatus: z.enum(['scheduled', 'live', 'completed'])
 })

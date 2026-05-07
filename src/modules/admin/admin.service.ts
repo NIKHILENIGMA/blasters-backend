@@ -1,4 +1,4 @@
-import { and, desc, eq, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, lte, or, sql } from 'drizzle-orm'
 
 import {
     fantasyFranchises,
@@ -16,11 +16,12 @@ import {
 import { DatabaseConnection } from '@/core/db/service/database.service'
 import { BadRequestError, NotFoundError } from '@/util'
 
-import { Fixture, Match } from './admin.types'
+import { Fixture, GetFixturesQuery, Match } from './admin.types'
 import { matchStats } from '@/core/db/schema/match-stats'
 import { CreateFixture, CreateMatch } from '../team/team.types'
 import { ScoreService } from './engine/score.service'
 import { getMatchDetails, ParsedPlayerStats, processCricbuzzStats } from '@/lib/get-match-stats'
+import { EMPTY_BREAKDOWN } from '@/constants/admin.constants'
 
 type FixtureRecord = typeof fixtures.$inferSelect
 type FixtureLineupRecord = typeof fixtureLineups.$inferSelect
@@ -47,7 +48,7 @@ export interface IAdminService {
     createFixture(data: CreateFixture): Promise<void>
     updateFixture(fixtureId: string, data: Partial<Fixture>): Promise<void>
     getFixtureById(fixtureId: string): Promise<Fixture>
-    getFixtures(): Promise<Fixture[]>
+    getFixtures(query: GetFixturesQuery): Promise<Fixture[]>
 }
 
 export class AdminService implements IAdminService {
@@ -94,38 +95,41 @@ export class AdminService implements IAdminService {
                 const player = playerMap.get(nameOrId.toLowerCase())
                 if (!player) continue // Log missing player if needed
 
-                const basePoints =
-                    this.scoreService.calculateBattingPoints({
-                        ...stat.batting,
-                        runs: stat.batting.runs,
-                        fours: stat.batting.fours,
-                        sixes: stat.batting.sixes,
-                        ballsFaced: stat.batting.ballsFaced,
-                        isBatsman: player.role === 'Batsman'
-                    }) +
-                    this.scoreService.calculateBowlingPoints({
-                        ...stat.bowling,
-                        wickets: stat.bowling.wickets,
-                        runsConceded: stat.bowling.runsConceded,
-                        oversBowled: stat.bowling.oversBowled,
-                        dots: stat.bowling.dots,
-                        lbwBowledCount: stat.bowling.lbwBowledCount,
-                        maidens: stat.bowling.maidens
-                    }) +
-                    this.scoreService.calculateFieldingPoints(
-                        {
-                            ...stat.fielding,
-                            catches: stat.fielding.catches,
-                            runOutDirect: stat.fielding.runOutDirect,
-                            stumpings: stat.fielding.stumpings
-                        },
+                const battingPoints = this.scoreService.calculateBattingPoints({
+                    ...stat.batting,
+                    runs: stat.batting.runs,
+                    fours: stat.batting.fours,
+                    sixes: stat.batting.sixes,
+                    ballsFaced: stat.batting.ballsFaced,
+                    isBatsman: player.role === 'Batsman'
+                })
 
-                        player.role === 'Wicket-Keeper'
-                    )
+                const bowlingPoints = this.scoreService.calculateBowlingPoints({
+                    ...stat.bowling,
+                    wickets: stat.bowling.wickets,
+                    runsConceded: stat.bowling.runsConceded,
+                    oversBowled: stat.bowling.oversBowled,
+                    dots: stat.bowling.dots,
+                    lbwBowledCount: stat.bowling.lbwBowledCount,
+                    maidens: stat.bowling.maidens
+                })
+
+                const fieldingPoints = this.scoreService.calculateFieldingPoints(
+                    {
+                        ...stat.fielding,
+                        catches: stat.fielding.catches,
+                        runOutDirect: stat.fielding.runOutDirect,
+                        stumpings: stat.fielding.stumpings
+                    },
+
+                    player.role === 'Wicket-Keeper'
+                )
+
+                const basePoints = battingPoints.total + bowlingPoints.total + fieldingPoints.total
 
                 finalPerformances.push({ playerId: player.id, stats: stat, basePoints })
 
-                // Save to raw match_stats
+                // Save to raw match_stats with complete breakdown
                 await tx.insert(matchStats).values({
                     fixtureId,
                     playerId: player.id,
@@ -135,7 +139,40 @@ export class AdminService implements IAdminService {
                     wickets: stat.bowling.wickets,
                     catches: stat.fielding.catches,
                     runouts: stat.fielding.runOutDirect,
-                    finalPoints: basePoints
+                    // Legacy compatibility: this table stores per-player base contribution.
+                    finalPoints: basePoints,
+                    basePoints: basePoints,
+                    breakdown: {
+                        batting: {
+                            total: battingPoints.total,
+                            rawRunsPoints: battingPoints.rawRunsPoints,
+                            foursPoints: battingPoints.foursPoints,
+                            sixesPoints: battingPoints.sixesPoints,
+                            milestonePoints: battingPoints.milestonePoints,
+                            strikeRatePoints: battingPoints.strikeRatePoints,
+                            duckPenaltyPoints: battingPoints.duckPenaltyPoints
+                        },
+                        bowling: {
+                            total: bowlingPoints.total,
+                            wicketsPoints: bowlingPoints.wicketsPoints,
+                            dotBallPoints: bowlingPoints.dotBallPoints,
+                            milestonePoints: bowlingPoints.milestonePoints,
+                            overBonusPoints: bowlingPoints.overBonusPoints,
+                            economyPoints: bowlingPoints.economyPoints,
+                            maidenPoints: bowlingPoints.maidenPoints,
+                            lbwBowledPoints: bowlingPoints.lbwBowledPoints
+                        },
+                        fielding: {
+                            total: fieldingPoints.total,
+                            catchesPoints: fieldingPoints.catchesPoints,
+                            runOutPoints: fieldingPoints.runOutPoints,
+                            stumpingsPoints: fieldingPoints.stumpingsPoints,
+                            catchBonusPoints: fieldingPoints.catchBonusPoints,
+                            runOutBonusPoints: fieldingPoints.runOutBonusPoints,
+                            stumpingBonusPoints: fieldingPoints.stumpingBonusPoints
+                        },
+                        totalBasePoints: basePoints
+                    }
                 })
             }
 
@@ -195,7 +232,8 @@ export class AdminService implements IAdminService {
                     else if (lp.playerId === lineup?.impactPlayerId) fantasyRole = 'ImpactPlayer'
                     else if (player?.isOverseas) fantasyRole = 'OverseasPlayer'
 
-                    const finalPoints =
+                    // Calculate final points using the comprehensive method
+                    const scoreBreakdown =
                         isPlaying && perf
                             ? this.scoreService.calculateFinalPoints({
                                   batting: perf.stats.batting,
@@ -206,7 +244,9 @@ export class AdminService implements IAdminService {
                                   fantasyRole,
                                   isOverseas: player?.isOverseas ?? false
                               })
-                            : 0
+                            : EMPTY_BREAKDOWN(fantasyRole)
+
+                    const finalPoints = scoreBreakdown?.finalPoints
 
                     userTotal += finalPoints
                     return {
@@ -216,9 +256,15 @@ export class AdminService implements IAdminService {
                         isCaptain: fantasyRole === 'Captain',
                         isViceCaptain: fantasyRole === 'ViceCaptain',
                         isImpactPlayer: fantasyRole === 'ImpactPlayer',
-                        basePoints: perf?.basePoints || 0,
-                        finalPoints: finalPoints,
-                        breakdown: { fantasyRole }
+                        basePoints: scoreBreakdown.totalBasePoints,
+                        multiplier:
+                            scoreBreakdown.role.roleMultiplier *
+                            scoreBreakdown.role.overseasMultiplier,
+                        bonusPoints:
+                            scoreBreakdown.role.roleBonusPoints +
+                            scoreBreakdown.role.overseasBonusPoints,
+                        finalPoints,
+                        breakdown: scoreBreakdown
                     }
                 })
 
@@ -358,8 +404,19 @@ export class AdminService implements IAdminService {
         return fixture as Fixture
     }
 
-    async getFixtures(): Promise<Fixture[]> {
-        return (await this.db.select().from(fixtures)) as Fixture[]
+    async getFixtures(query: GetFixturesQuery): Promise<Fixture[]> {
+        const status = query.status ?? query.matchStatus
+        const conditions = []
+
+        if (status) conditions.push(eq(fixtures.matchStatus, status))
+        if (query.team)
+            conditions.push(or(eq(fixtures.teamA, query.team), eq(fixtures.teamB, query.team)))
+        if (query.matchId) conditions.push(eq(fixtures.matchId, query.matchId))
+
+        const baseQuery = this.db.select().from(fixtures)
+        if (!conditions.length) return await baseQuery
+
+        return await baseQuery.where(and(...conditions))
     }
 
     private async getFixtureLineupForCycle(
