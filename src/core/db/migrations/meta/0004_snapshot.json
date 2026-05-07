@@ -1,0 +1,1578 @@
+{
+    "id": "558f9bc4-fa8d-4132-81a2-750bd8959bab",
+    "prevId": "91298341-8981-4281-85a8-07e6b58e21cb",
+    "version": "7",
+    "dialect": "postgresql",
+    "tables": {
+        "public.boosters": {
+            "name": "boosters",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "name": {
+                    "name": "name",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "code": {
+                    "name": "code",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "description": {
+                    "name": "description",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "scope": {
+                    "name": "scope",
+                    "type": "booster_scope",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'fixture'"
+                },
+                "config": {
+                    "name": "config",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "is_active": {
+                    "name": "is_active",
+                    "type": "boolean",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": true
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {},
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.fixture_booster_awards": {
+            "name": "fixture_booster_awards",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "fixture_id": {
+                    "name": "fixture_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "booster_id": {
+                    "name": "booster_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "roster_cycle_id": {
+                    "name": "roster_cycle_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "player_id": {
+                    "name": "player_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "points_awarded": {
+                    "name": "points_awarded",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "reason": {
+                    "name": "reason",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {
+                "fixture_booster_awards_fixture_id_fixtures_id_fk": {
+                    "name": "fixture_booster_awards_fixture_id_fixtures_id_fk",
+                    "tableFrom": "fixture_booster_awards",
+                    "tableTo": "fixtures",
+                    "columnsFrom": ["fixture_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "fixture_booster_awards_booster_id_boosters_id_fk": {
+                    "name": "fixture_booster_awards_booster_id_boosters_id_fk",
+                    "tableFrom": "fixture_booster_awards",
+                    "tableTo": "boosters",
+                    "columnsFrom": ["booster_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "fixture_booster_awards_roster_cycle_id_roster_cycles_id_fk": {
+                    "name": "fixture_booster_awards_roster_cycle_id_roster_cycles_id_fk",
+                    "tableFrom": "fixture_booster_awards",
+                    "tableTo": "roster_cycles",
+                    "columnsFrom": ["roster_cycle_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "fixture_booster_awards_player_id_ipl_players_id_fk": {
+                    "name": "fixture_booster_awards_player_id_ipl_players_id_fk",
+                    "tableFrom": "fixture_booster_awards",
+                    "tableTo": "ipl_players",
+                    "columnsFrom": ["player_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "set null",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.fantasy_franchises": {
+            "name": "fantasy_franchises",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "user_id": {
+                    "name": "user_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "team_name": {
+                    "name": "team_name",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "team_logo": {
+                    "name": "team_logo",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "fantasy_franchises_user_id_idx": {
+                    "name": "fantasy_franchises_user_id_idx",
+                    "columns": [
+                        {
+                            "expression": "user_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {
+                "fantasy_franchises_user_id_users_id_fk": {
+                    "name": "fantasy_franchises_user_id_users_id_fk",
+                    "tableFrom": "fantasy_franchises",
+                    "tableTo": "users",
+                    "columnsFrom": ["user_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.fantasy_teams": {
+            "name": "fantasy_teams",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "user_id": {
+                    "name": "user_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "match_id": {
+                    "name": "match_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "team_name": {
+                    "name": "team_name",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "players": {
+                    "name": "players",
+                    "type": "text[]",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "captain_id": {
+                    "name": "captain_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "vice_captain_id": {
+                    "name": "vice_captain_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {
+                "fantasy_teams_user_id_users_id_fk": {
+                    "name": "fantasy_teams_user_id_users_id_fk",
+                    "tableFrom": "fantasy_teams",
+                    "tableTo": "users",
+                    "columnsFrom": ["user_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                },
+                "fantasy_teams_match_id_matches_id_fk": {
+                    "name": "fantasy_teams_match_id_matches_id_fk",
+                    "tableFrom": "fantasy_teams",
+                    "tableTo": "matches",
+                    "columnsFrom": ["match_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {
+                "fantasy_teams_team_name_unique": {
+                    "name": "fantasy_teams_team_name_unique",
+                    "nullsNotDistinct": false,
+                    "columns": ["team_name"]
+                }
+            },
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.fixture_lineup_players": {
+            "name": "fixture_lineup_players",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "fixture_lineup_id": {
+                    "name": "fixture_lineup_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "player_id": {
+                    "name": "player_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "selection_type": {
+                    "name": "selection_type",
+                    "type": "lineup_selection_type",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "fixture_lineup_players_lineup_player_idx": {
+                    "name": "fixture_lineup_players_lineup_player_idx",
+                    "columns": [
+                        {
+                            "expression": "fixture_lineup_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        },
+                        {
+                            "expression": "player_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {
+                "fixture_lineup_players_fixture_lineup_id_fixture_lineups_id_fk": {
+                    "name": "fixture_lineup_players_fixture_lineup_id_fixture_lineups_id_fk",
+                    "tableFrom": "fixture_lineup_players",
+                    "tableTo": "fixture_lineups",
+                    "columnsFrom": ["fixture_lineup_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "fixture_lineup_players_player_id_ipl_players_id_fk": {
+                    "name": "fixture_lineup_players_player_id_ipl_players_id_fk",
+                    "tableFrom": "fixture_lineup_players",
+                    "tableTo": "ipl_players",
+                    "columnsFrom": ["player_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.fixture_lineups": {
+            "name": "fixture_lineups",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "roster_cycle_id": {
+                    "name": "roster_cycle_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "fixture_id": {
+                    "name": "fixture_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "ruleset_id": {
+                    "name": "ruleset_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "status": {
+                    "name": "status",
+                    "type": "fixture_lineup_status",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'draft'"
+                },
+                "captain_id": {
+                    "name": "captain_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "vice_captain_id": {
+                    "name": "vice_captain_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "impact_player_id": {
+                    "name": "impact_player_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "submitted_at": {
+                    "name": "submitted_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "locked_at": {
+                    "name": "locked_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "lineup_lock_at": {
+                    "name": "lineup_lock_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "auto_applied_from_lineup_id": {
+                    "name": "auto_applied_from_lineup_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "fixture_lineups_cycle_fixture_idx": {
+                    "name": "fixture_lineups_cycle_fixture_idx",
+                    "columns": [
+                        {
+                            "expression": "roster_cycle_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        },
+                        {
+                            "expression": "fixture_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {
+                "fixture_lineups_roster_cycle_id_roster_cycles_id_fk": {
+                    "name": "fixture_lineups_roster_cycle_id_roster_cycles_id_fk",
+                    "tableFrom": "fixture_lineups",
+                    "tableTo": "roster_cycles",
+                    "columnsFrom": ["roster_cycle_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "fixture_lineups_fixture_id_fixtures_id_fk": {
+                    "name": "fixture_lineups_fixture_id_fixtures_id_fk",
+                    "tableFrom": "fixture_lineups",
+                    "tableTo": "fixtures",
+                    "columnsFrom": ["fixture_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "fixture_lineups_ruleset_id_rulesets_id_fk": {
+                    "name": "fixture_lineups_ruleset_id_rulesets_id_fk",
+                    "tableFrom": "fixture_lineups",
+                    "tableTo": "rulesets",
+                    "columnsFrom": ["ruleset_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                },
+                "fixture_lineups_captain_id_ipl_players_id_fk": {
+                    "name": "fixture_lineups_captain_id_ipl_players_id_fk",
+                    "tableFrom": "fixture_lineups",
+                    "tableTo": "ipl_players",
+                    "columnsFrom": ["captain_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "restrict",
+                    "onUpdate": "no action"
+                },
+                "fixture_lineups_vice_captain_id_ipl_players_id_fk": {
+                    "name": "fixture_lineups_vice_captain_id_ipl_players_id_fk",
+                    "tableFrom": "fixture_lineups",
+                    "tableTo": "ipl_players",
+                    "columnsFrom": ["vice_captain_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "restrict",
+                    "onUpdate": "no action"
+                },
+                "fixture_lineups_impact_player_id_ipl_players_id_fk": {
+                    "name": "fixture_lineups_impact_player_id_ipl_players_id_fk",
+                    "tableFrom": "fixture_lineups",
+                    "tableTo": "ipl_players",
+                    "columnsFrom": ["impact_player_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "restrict",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.fixture_user_player_points": {
+            "name": "fixture_user_player_points",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "fixture_user_points_id": {
+                    "name": "fixture_user_points_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "player_id": {
+                    "name": "player_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "selection_type": {
+                    "name": "selection_type",
+                    "type": "lineup_selection_type",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "is_captain": {
+                    "name": "is_captain",
+                    "type": "boolean",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": false
+                },
+                "is_vice_captain": {
+                    "name": "is_vice_captain",
+                    "type": "boolean",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": false
+                },
+                "is_impact_player": {
+                    "name": "is_impact_player",
+                    "type": "boolean",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": false
+                },
+                "base_points": {
+                    "name": "base_points",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "multiplier": {
+                    "name": "multiplier",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 1
+                },
+                "bonus_points": {
+                    "name": "bonus_points",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "final_points": {
+                    "name": "final_points",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "breakdown": {
+                    "name": "breakdown",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": true
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {
+                "fixture_user_player_points_fixture_user_points_id_fixture_user_points_id_fk": {
+                    "name": "fixture_user_player_points_fixture_user_points_id_fixture_user_points_id_fk",
+                    "tableFrom": "fixture_user_player_points",
+                    "tableTo": "fixture_user_points",
+                    "columnsFrom": ["fixture_user_points_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "fixture_user_player_points_player_id_ipl_players_id_fk": {
+                    "name": "fixture_user_player_points_player_id_ipl_players_id_fk",
+                    "tableFrom": "fixture_user_player_points",
+                    "tableTo": "ipl_players",
+                    "columnsFrom": ["player_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.fixture_user_points": {
+            "name": "fixture_user_points",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "roster_cycle_id": {
+                    "name": "roster_cycle_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "fixture_id": {
+                    "name": "fixture_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "lineup_id": {
+                    "name": "lineup_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "total_points": {
+                    "name": "total_points",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "rank_snapshot": {
+                    "name": "rank_snapshot",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {
+                "fixture_user_points_roster_cycle_id_roster_cycles_id_fk": {
+                    "name": "fixture_user_points_roster_cycle_id_roster_cycles_id_fk",
+                    "tableFrom": "fixture_user_points",
+                    "tableTo": "roster_cycles",
+                    "columnsFrom": ["roster_cycle_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "fixture_user_points_fixture_id_fixtures_id_fk": {
+                    "name": "fixture_user_points_fixture_id_fixtures_id_fk",
+                    "tableFrom": "fixture_user_points",
+                    "tableTo": "fixtures",
+                    "columnsFrom": ["fixture_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "fixture_user_points_lineup_id_fixture_lineups_id_fk": {
+                    "name": "fixture_user_points_lineup_id_fixture_lineups_id_fk",
+                    "tableFrom": "fixture_user_points",
+                    "tableTo": "fixture_lineups",
+                    "columnsFrom": ["lineup_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.fixtures": {
+            "name": "fixtures",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "text",
+                    "primaryKey": true,
+                    "notNull": true
+                },
+                "match_id": {
+                    "name": "match_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "team_a": {
+                    "name": "team_a",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "team_b": {
+                    "name": "team_b",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "start_time": {
+                    "name": "start_time",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "lineup_lock_at": {
+                    "name": "lineup_lock_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "is_processed": {
+                    "name": "is_processed",
+                    "type": "boolean",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": false
+                },
+                "match_number": {
+                    "name": "match_number",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "venue_id": {
+                    "name": "venue_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "match_result": {
+                    "name": "match_result",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "match_status": {
+                    "name": "match_status",
+                    "type": "match_status",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": false
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {
+                "fixtures_match_id_matches_id_fk": {
+                    "name": "fixtures_match_id_matches_id_fk",
+                    "tableFrom": "fixtures",
+                    "tableTo": "matches",
+                    "columnsFrom": ["match_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.users": {
+            "name": "users",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "text",
+                    "primaryKey": true,
+                    "notNull": true
+                },
+                "role": {
+                    "name": "role",
+                    "type": "user_role",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'PLAYER'"
+                },
+                "username": {
+                    "name": "username",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "first_name": {
+                    "name": "first_name",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "last_name": {
+                    "name": "last_name",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "email": {
+                    "name": "email",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "profile_image": {
+                    "name": "profile_image",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "available_points": {
+                    "name": "available_points",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 900
+                },
+                "total_score": {
+                    "name": "total_score",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "matches_played": {
+                    "name": "matches_played",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {},
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.ipl_players": {
+            "name": "ipl_players",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "name": {
+                    "name": "name",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "ipl_team": {
+                    "name": "ipl_team",
+                    "type": "team",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "role": {
+                    "name": "role",
+                    "type": "player_role",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "profile_image_url": {
+                    "name": "profile_image_url",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "is_overseas": {
+                    "name": "is_overseas",
+                    "type": "boolean",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": false
+                },
+                "cost": {
+                    "name": "cost",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "cricbuzz_player_id": {
+                    "name": "cricbuzz_player_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {},
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.matches": {
+            "name": "matches",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "title": {
+                    "name": "title",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "is_locked": {
+                    "name": "is_locked",
+                    "type": "boolean",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": true
+                },
+                "buy_window_open_at": {
+                    "name": "buy_window_open_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "buy_window_close_at": {
+                    "name": "buy_window_close_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "squad_lock_at": {
+                    "name": "squad_lock_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "start_time": {
+                    "name": "start_time",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "end_time": {
+                    "name": "end_time",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {},
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.match_stats": {
+            "name": "match_stats",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "fixture_id": {
+                    "name": "fixture_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "player_id": {
+                    "name": "player_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "runs": {
+                    "name": "runs",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "fours": {
+                    "name": "fours",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "sixes": {
+                    "name": "sixes",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "wickets": {
+                    "name": "wickets",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "catches": {
+                    "name": "catches",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "runouts": {
+                    "name": "runouts",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "final_points": {
+                    "name": "final_points",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "base_points": {
+                    "name": "base_points",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "breakdown": {
+                    "name": "breakdown",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": false
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {
+                "match_stats_fixture_id_fixtures_id_fk": {
+                    "name": "match_stats_fixture_id_fixtures_id_fk",
+                    "tableFrom": "match_stats",
+                    "tableTo": "fixtures",
+                    "columnsFrom": ["fixture_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                },
+                "match_stats_player_id_ipl_players_id_fk": {
+                    "name": "match_stats_player_id_ipl_players_id_fk",
+                    "tableFrom": "match_stats",
+                    "tableTo": "ipl_players",
+                    "columnsFrom": ["player_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.roster_cycle_players": {
+            "name": "roster_cycle_players",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "roster_cycle_id": {
+                    "name": "roster_cycle_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "player_id": {
+                    "name": "player_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "purchase_price": {
+                    "name": "purchase_price",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "roster_cycle_players_cycle_player_idx": {
+                    "name": "roster_cycle_players_cycle_player_idx",
+                    "columns": [
+                        {
+                            "expression": "roster_cycle_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        },
+                        {
+                            "expression": "player_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {
+                "roster_cycle_players_roster_cycle_id_roster_cycles_id_fk": {
+                    "name": "roster_cycle_players_roster_cycle_id_roster_cycles_id_fk",
+                    "tableFrom": "roster_cycle_players",
+                    "tableTo": "roster_cycles",
+                    "columnsFrom": ["roster_cycle_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "roster_cycle_players_player_id_ipl_players_id_fk": {
+                    "name": "roster_cycle_players_player_id_ipl_players_id_fk",
+                    "tableFrom": "roster_cycle_players",
+                    "tableTo": "ipl_players",
+                    "columnsFrom": ["player_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.roster_cycles": {
+            "name": "roster_cycles",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "franchise_id": {
+                    "name": "franchise_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "match_id": {
+                    "name": "match_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "budget_total": {
+                    "name": "budget_total",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 2000
+                },
+                "status": {
+                    "name": "status",
+                    "type": "roster_cycle_status",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'draft'"
+                },
+                "budget_used": {
+                    "name": "budget_used",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "wallet_reset_amount": {
+                    "name": "wallet_reset_amount",
+                    "type": "real",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 2000
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "roster_cycles_franchise_match_idx": {
+                    "name": "roster_cycles_franchise_match_idx",
+                    "columns": [
+                        {
+                            "expression": "franchise_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        },
+                        {
+                            "expression": "match_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {
+                "roster_cycles_franchise_id_fantasy_franchises_id_fk": {
+                    "name": "roster_cycles_franchise_id_fantasy_franchises_id_fk",
+                    "tableFrom": "roster_cycles",
+                    "tableTo": "fantasy_franchises",
+                    "columnsFrom": ["franchise_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "roster_cycles_match_id_matches_id_fk": {
+                    "name": "roster_cycles_match_id_matches_id_fk",
+                    "tableFrom": "roster_cycles",
+                    "tableTo": "matches",
+                    "columnsFrom": ["match_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.rulesets": {
+            "name": "rulesets",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "name": {
+                    "name": "name",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "scope": {
+                    "name": "scope",
+                    "type": "ruleset_scope",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'global'"
+                },
+                "config": {
+                    "name": "config",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "is_active": {
+                    "name": "is_active",
+                    "type": "boolean",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": true
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {},
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        }
+    },
+    "enums": {
+        "public.booster_scope": {
+            "name": "booster_scope",
+            "schema": "public",
+            "values": ["global", "cycle", "fixture"]
+        },
+        "public.fixture_lineup_status": {
+            "name": "fixture_lineup_status",
+            "schema": "public",
+            "values": ["draft", "locked", "scored"]
+        },
+        "public.lineup_selection_type": {
+            "name": "lineup_selection_type",
+            "schema": "public",
+            "values": ["PLAYING", "SUBSTITUTE"]
+        },
+        "public.match_status": {
+            "name": "match_status",
+            "schema": "public",
+            "values": ["scheduled", "live", "completed"]
+        },
+        "public.user_role": {
+            "name": "user_role",
+            "schema": "public",
+            "values": ["PLAYER", "ADMIN"]
+        },
+        "public.player_role": {
+            "name": "player_role",
+            "schema": "public",
+            "values": ["Batsman", "Bowler", "All-Rounder", "Wicket-Keeper"]
+        },
+        "public.team": {
+            "name": "team",
+            "schema": "public",
+            "values": ["CSK", "MI", "RCB", "KKR", "SRH", "DC", "PBKS", "RR", "GT", "LSG"]
+        },
+        "public.roster_cycle_status": {
+            "name": "roster_cycle_status",
+            "schema": "public",
+            "values": ["draft", "published"]
+        },
+        "public.ruleset_scope": {
+            "name": "ruleset_scope",
+            "schema": "public",
+            "values": ["global", "cycle", "fixture"]
+        }
+    },
+    "schemas": {},
+    "sequences": {},
+    "roles": {},
+    "policies": {},
+    "views": {},
+    "_meta": {
+        "columns": {},
+        "schemas": {},
+        "tables": {}
+    }
+}

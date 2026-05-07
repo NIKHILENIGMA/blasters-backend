@@ -29,6 +29,13 @@
             "when": 1777805403463,
             "tag": "0003_added_roaster_cycle_status",
             "breakpoints": true
+        },
+        {
+            "idx": 4,
+            "version": "7",
+            "when": 1778156362075,
+            "tag": "0004_player_points_breakdown",
+            "breakpoints": true
         }
     ]
 }
