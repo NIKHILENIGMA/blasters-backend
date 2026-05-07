@@ -20,5 +20,7 @@ export default {
             ],
         ],
         "subject-case": [2, "always", "sentence-case"],
+        "body-leading-blank": [2, "always"],
+        "body-max-line-length": [2, "always", 200],
     },
 };
