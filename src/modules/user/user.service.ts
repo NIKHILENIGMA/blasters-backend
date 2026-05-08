@@ -26,18 +26,7 @@ export class UserService implements IUserService {
         rank: number
     }> {
         const result = await this.db.execute(sql`
-            WITH user_ledger AS (
-                SELECT
-                    u.id AS user_id,
-                    COALESCE(SUM(fup.total_points), 0)::float8 AS total_score,
-                    COUNT(fup.id)::int AS matches_played
-                FROM users u
-                LEFT JOIN fantasy_franchises ff ON ff.user_id = u.id
-                LEFT JOIN roster_cycles rc ON rc.franchise_id = ff.id
-                LEFT JOIN fixture_user_points fup ON fup.roster_cycle_id = rc.id
-                GROUP BY u.id
-            ),
-            active_cycle_wallet AS (
+            WITH active_cycle_wallet AS (
                 SELECT
                     ff.user_id,
                     (rc.budget_total - rc.budget_used)::float8 AS available_points
@@ -50,12 +39,11 @@ export class UserService implements IUserService {
             ranked_users AS (
                 SELECT
                     u.id AS user_id,
-                    ul.total_score,
-                    ul.matches_played,
+                    u.total_score::float8 AS total_score,
+                    u.matches_played::int AS matches_played,
                     COALESCE(acw.available_points, u.available_points)::float8 AS available_points,
-                    RANK() OVER (ORDER BY ul.total_score DESC, u.created_at ASC)::int AS rank
+                    RANK() OVER (ORDER BY u.total_score DESC, u.created_at ASC)::int AS rank
                 FROM users u
-                LEFT JOIN user_ledger ul ON ul.user_id = u.id
                 LEFT JOIN active_cycle_wallet acw ON acw.user_id = u.id
             )
             SELECT
@@ -88,30 +76,26 @@ export class UserService implements IUserService {
 
     async getTopScorers(limit: number = 3): Promise<LeaderBoardRanking[]> {
         const result = await this.db.execute(sql`
-            WITH user_ledger AS (
+            WITH franchise_profile AS (
                 SELECT
-                    u.id AS user_id,
-                    COALESCE(SUM(fup.total_points), 0)::float8 AS total_score,
+                    ff.user_id,
                     MAX(ff.team_name) AS team_name,
                     MAX(ff.team_logo) AS team_logo
-                FROM users u
-                LEFT JOIN fantasy_franchises ff ON ff.user_id = u.id
-                LEFT JOIN roster_cycles rc ON rc.franchise_id = ff.id
-                LEFT JOIN fixture_user_points fup ON fup.roster_cycle_id = rc.id
-                GROUP BY u.id
+                FROM fantasy_franchises ff
+                GROUP BY ff.user_id
             )
             SELECT
                 u.first_name AS "firstName",
                 u.last_name AS "lastName",
                 u.username AS username,
-                COALESCE(ul.total_score, 0)::float8 AS "totalScore",
+                u.total_score::float8 AS "totalScore",
                 u.profile_image AS "profileImage",
-                ul.team_name AS "teamName",
-                ul.team_logo AS "teamLogo",
-                RANK() OVER (ORDER BY COALESCE(ul.total_score, 0) DESC, u.created_at ASC)::int AS rank
+                fp.team_name AS "teamName",
+                fp.team_logo AS "teamLogo",
+                RANK() OVER (ORDER BY u.total_score DESC, u.created_at ASC)::int AS rank
             FROM users u
-            LEFT JOIN user_ledger ul ON ul.user_id = u.id
-            ORDER BY COALESCE(ul.total_score, 0) DESC, u.created_at ASC
+            LEFT JOIN franchise_profile fp ON fp.user_id = u.id
+            ORDER BY u.total_score DESC, u.created_at ASC
             LIMIT ${limit}
         `)
 
@@ -130,30 +114,26 @@ export class UserService implements IUserService {
 
     async getLeaderboard(): Promise<LeaderBoardRanking[]> {
         const result = await this.db.execute(sql`
-            WITH user_ledger AS (
+            WITH franchise_profile AS (
                 SELECT
-                    u.id AS user_id,
-                    COALESCE(SUM(fup.total_points), 0)::float8 AS total_score,
+                    ff.user_id,
                     MAX(ff.team_name) AS team_name,
                     MAX(ff.team_logo) AS team_logo
-                FROM users u
-                LEFT JOIN fantasy_franchises ff ON ff.user_id = u.id
-                LEFT JOIN roster_cycles rc ON rc.franchise_id = ff.id
-                LEFT JOIN fixture_user_points fup ON fup.roster_cycle_id = rc.id
-                GROUP BY u.id
+                FROM fantasy_franchises ff
+                GROUP BY ff.user_id
             )
             SELECT
                 u.first_name AS "firstName",
                 u.last_name AS "lastName",
                 u.username AS username,
                 u.profile_image AS "profileImage",
-                COALESCE(ul.total_score, 0)::float8 AS "totalScore",
-                ul.team_name AS "teamName",
-                ul.team_logo AS "teamLogo",
-                RANK() OVER (ORDER BY COALESCE(ul.total_score, 0) DESC, u.created_at ASC)::int AS rank
+                u.total_score::float8 AS "totalScore",
+                fp.team_name AS "teamName",
+                fp.team_logo AS "teamLogo",
+                RANK() OVER (ORDER BY u.total_score DESC, u.created_at ASC)::int AS rank
             FROM users u
-            LEFT JOIN user_ledger ul ON ul.user_id = u.id
-            ORDER BY COALESCE(ul.total_score, 0) DESC, u.created_at ASC
+            LEFT JOIN franchise_profile fp ON fp.user_id = u.id
+            ORDER BY u.total_score DESC, u.created_at ASC
             LIMIT 40
         `)
 

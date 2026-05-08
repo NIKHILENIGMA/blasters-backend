@@ -4,6 +4,13 @@ import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default defineConfig({
+    ignores: [
+        'dist/**',
+        'build/**',
+        'coverage/**',
+        'src/core/db/seeds/**',
+        'src/core/db/mock/**',
+    ],
     languageOptions: {
         parserOptions: {
             project: true,
