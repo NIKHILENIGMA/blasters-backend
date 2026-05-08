@@ -4,5 +4,7 @@ export interface LeaderBoardRanking {
     username: string
     totalScore: number
     rank: number
-    profileImage?: string
+    profileImage?: string | null
+    teamName?: string | null
+    teamLogo?: string | null
 }

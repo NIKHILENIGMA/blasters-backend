@@ -13,6 +13,16 @@ router
     .post(clerkMiddleware, isAdmin, adminController.createFixture)
 
 router
+    .route('/rulesets')
+    .get(clerkMiddleware, isAdmin, adminController.getRulesets)
+    .post(clerkMiddleware, isAdmin, adminController.createRuleset)
+
+router
+    .route('/rulesets/:rulesetId')
+    .patch(clerkMiddleware, isAdmin, adminController.updateRuleset)
+    .delete(clerkMiddleware, isAdmin, adminController.deleteRuleset)
+
+router
     .route('/fixtures/:fixtureId')
     .patch(clerkMiddleware, isAdmin, adminController.updateFixture)
     .get(clerkMiddleware, isAdmin, adminController.getFixtureById)

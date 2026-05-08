@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, lte, ne, or, sql } from 'drizzle-orm'
 
 import {
     fantasyFranchises,
@@ -15,6 +15,7 @@ import {
     rulesets,
     users
 } from '@/core'
+import type { CreateRuleSet, RuleSet } from '@/core'
 import { DatabaseConnection } from '@/core/db/service/database.service'
 import { BadRequestError, NotFoundError } from '@/util'
 
@@ -51,6 +52,10 @@ export interface IAdminService {
     getFixtureById(fixtureId: string): Promise<Fixture>
     getFixtures(query: GetFixturesQuery): Promise<Fixture[]>
     getFixtureTeams(fixtureId: string): Promise<AdminFixtureTeamsResponse>
+    getRulesets(): Promise<RuleSet[]>
+    createRuleset(data: CreateRuleSet): Promise<RuleSet>
+    updateRuleset(rulesetId: string, data: Partial<CreateRuleSet>): Promise<RuleSet>
+    deleteRuleset(rulesetId: string): Promise<void>
 }
 
 export class AdminService implements IAdminService {
@@ -376,13 +381,80 @@ export class AdminService implements IAdminService {
     }
 
     async updateMatch(matchId: string, data: Partial<Match>): Promise<void> {
-        await this.db.update(matches).set(data).where(eq(matches.id, matchId))
+        const [match] = await this.db
+            .update(matches)
+            .set({ ...data, updatedAt: new Date() })
+            .where(eq(matches.id, matchId))
+            .returning({ id: matches.id })
+
+        if (!match) throw new NotFoundError('Match not found')
     }
 
     async getMatchById(matchId: string): Promise<Match> {
         const [match] = await this.db.select().from(matches).where(eq(matches.id, matchId))
         if (!match) throw new NotFoundError('Match not found')
         return match
+    }
+
+    async getRulesets(): Promise<RuleSet[]> {
+        return await this.db.select().from(rulesets).orderBy(desc(rulesets.createdAt))
+    }
+
+    async createRuleset(data: CreateRuleSet): Promise<RuleSet> {
+        return await this.db.transaction(async (tx) => {
+            if (data.isActive) {
+                await tx
+                    .update(rulesets)
+                    .set({ isActive: false })
+                    .where(eq(rulesets.isActive, true))
+            }
+
+            const [ruleset] = await tx.insert(rulesets).values(data).returning()
+            return ruleset
+        })
+    }
+
+    async updateRuleset(rulesetId: string, data: Partial<CreateRuleSet>): Promise<RuleSet> {
+        const [existingRuleset] = await this.db
+            .select({ id: rulesets.id })
+            .from(rulesets)
+            .where(eq(rulesets.id, rulesetId))
+
+        if (!existingRuleset) throw new NotFoundError('Ruleset not found')
+
+        return await this.db.transaction(async (tx) => {
+            if (data.isActive) {
+                await tx
+                    .update(rulesets)
+                    .set({ isActive: false, updatedAt: new Date() })
+                    .where(and(eq(rulesets.isActive, true), ne(rulesets.id, rulesetId)))
+            }
+
+            const [ruleset] = await tx
+                .update(rulesets)
+                .set({ ...data, updatedAt: new Date() })
+                .where(eq(rulesets.id, rulesetId))
+                .returning()
+
+            return ruleset
+        })
+    }
+
+    async deleteRuleset(rulesetId: string): Promise<void> {
+        const [ruleset] = await this.db
+            .select({ id: rulesets.id })
+            .from(rulesets)
+            .where(eq(rulesets.id, rulesetId))
+
+        if (!ruleset) throw new NotFoundError('Ruleset not found')
+
+        await this.db.transaction(async (tx) => {
+            await tx
+                .update(fixtureLineups)
+                .set({ rulesetId: null })
+                .where(eq(fixtureLineups.rulesetId, rulesetId))
+            await tx.delete(rulesets).where(eq(rulesets.id, rulesetId))
+        })
     }
 
     async getMatches(): Promise<Match[]> {

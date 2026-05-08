@@ -91,7 +91,9 @@ export class UserService implements IUserService {
             WITH user_ledger AS (
                 SELECT
                     u.id AS user_id,
-                    COALESCE(SUM(fup.total_points), 0)::float8 AS total_score
+                    COALESCE(SUM(fup.total_points), 0)::float8 AS total_score,
+                    MAX(ff.team_name) AS team_name,
+                    MAX(ff.team_logo) AS team_logo
                 FROM users u
                 LEFT JOIN fantasy_franchises ff ON ff.user_id = u.id
                 LEFT JOIN roster_cycles rc ON rc.franchise_id = ff.id
@@ -104,6 +106,8 @@ export class UserService implements IUserService {
                 u.username AS username,
                 COALESCE(ul.total_score, 0)::float8 AS "totalScore",
                 u.profile_image AS "profileImage",
+                ul.team_name AS "teamName",
+                ul.team_logo AS "teamLogo",
                 RANK() OVER (ORDER BY COALESCE(ul.total_score, 0) DESC, u.created_at ASC)::int AS rank
             FROM users u
             LEFT JOIN user_ledger ul ON ul.user_id = u.id
@@ -117,7 +121,9 @@ export class UserService implements IUserService {
             username: row.username,
             totalScore: row.totalScore,
             rank: row.rank,
-            profileImage: row.profileImage
+            profileImage: row.profileImage,
+            teamName: row.teamName,
+            teamLogo: row.teamLogo
         })) as LeaderBoardRanking[]
         return leaderboard
     }
@@ -127,7 +133,9 @@ export class UserService implements IUserService {
             WITH user_ledger AS (
                 SELECT
                     u.id AS user_id,
-                    COALESCE(SUM(fup.total_points), 0)::float8 AS total_score
+                    COALESCE(SUM(fup.total_points), 0)::float8 AS total_score,
+                    MAX(ff.team_name) AS team_name,
+                    MAX(ff.team_logo) AS team_logo
                 FROM users u
                 LEFT JOIN fantasy_franchises ff ON ff.user_id = u.id
                 LEFT JOIN roster_cycles rc ON rc.franchise_id = ff.id
@@ -140,11 +148,13 @@ export class UserService implements IUserService {
                 u.username AS username,
                 u.profile_image AS "profileImage",
                 COALESCE(ul.total_score, 0)::float8 AS "totalScore",
+                ul.team_name AS "teamName",
+                ul.team_logo AS "teamLogo",
                 RANK() OVER (ORDER BY COALESCE(ul.total_score, 0) DESC, u.created_at ASC)::int AS rank
             FROM users u
             LEFT JOIN user_ledger ul ON ul.user_id = u.id
             ORDER BY COALESCE(ul.total_score, 0) DESC, u.created_at ASC
-            LIMIT 10
+            LIMIT 40
         `)
 
         const leaderboard = result.rows.map((row) => ({
@@ -153,7 +163,9 @@ export class UserService implements IUserService {
             username: row.username,
             totalScore: row.totalScore,
             rank: row.rank,
-            profileImage: row.profileImage
+            profileImage: row.profileImage,
+            teamName: row.teamName,
+            teamLogo: row.teamLogo
         })) as LeaderBoardRanking[]
 
         return leaderboard

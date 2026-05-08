@@ -7,12 +7,16 @@ import { IAdminService } from './admin.service'
 import {
     CreateFixtureSchema,
     CreateMatchSchema,
+    CreateRulesetSchema,
     FixtureIdParamSchema,
     GetFixturesQuerySchema,
     IngestMatchPerformanceSchema,
     LockMatchSchema,
     MatchIdParamSchema,
-    UpdateFixtureSchema
+    RulesetIdParamSchema,
+    UpdateFixtureSchema,
+    UpdateMatchSchema,
+    UpdateRulesetSchema
 } from './admin.validator'
 
 export class AdminController extends BaseController {
@@ -52,7 +56,7 @@ export class AdminController extends BaseController {
 
             const params = ValidationService.validateParams(req.params, MatchIdParamSchema)
 
-            const body = ValidationService.validateBody(req.body, CreateMatchSchema)
+            const body = ValidationService.validateBody(req.body, UpdateMatchSchema)
 
             await this.service.updateMatch(params.matchId, body)
 
@@ -298,6 +302,78 @@ export class AdminController extends BaseController {
             return this.createResponse({
                 statusCode: STATUS_CODE.OK,
                 message: 'Match locked successfully',
+                data: null
+            })
+        })
+    }
+
+    getRulesets = async (req: Request, res: Response, next: NextFunction) => {
+        return this.handleRequest(req, res, next, async () => {
+            const userId = req.user?.id
+            if (!userId) {
+                throw new UnauthorizedError('User not authenticated')
+            }
+
+            const rulesets = await this.service.getRulesets()
+
+            return this.createResponse({
+                statusCode: STATUS_CODE.OK,
+                message: 'Rulesets retrieved successfully',
+                data: rulesets
+            })
+        })
+    }
+
+    createRuleset = async (req: Request, res: Response, next: NextFunction) => {
+        return this.handleRequest(req, res, next, async () => {
+            const userId = req.user?.id
+            if (!userId) {
+                throw new UnauthorizedError('User not authenticated')
+            }
+
+            const body = ValidationService.validateBody(req.body, CreateRulesetSchema)
+            const ruleset = await this.service.createRuleset(body)
+
+            return this.createResponse({
+                statusCode: STATUS_CODE.CREATED,
+                message: 'Ruleset created successfully',
+                data: ruleset
+            })
+        })
+    }
+
+    updateRuleset = async (req: Request, res: Response, next: NextFunction) => {
+        return this.handleRequest(req, res, next, async () => {
+            const userId = req.user?.id
+            if (!userId) {
+                throw new UnauthorizedError('User not authenticated')
+            }
+
+            const params = ValidationService.validateParams(req.params, RulesetIdParamSchema)
+            const body = ValidationService.validateBody(req.body, UpdateRulesetSchema)
+            const ruleset = await this.service.updateRuleset(params.rulesetId, body)
+
+            return this.createResponse({
+                statusCode: STATUS_CODE.OK,
+                message: 'Ruleset updated successfully',
+                data: ruleset
+            })
+        })
+    }
+
+    deleteRuleset = async (req: Request, res: Response, next: NextFunction) => {
+        return this.handleRequest(req, res, next, async () => {
+            const userId = req.user?.id
+            if (!userId) {
+                throw new UnauthorizedError('User not authenticated')
+            }
+
+            const params = ValidationService.validateParams(req.params, RulesetIdParamSchema)
+            await this.service.deleteRuleset(params.rulesetId)
+
+            return this.createResponse({
+                statusCode: STATUS_CODE.OK,
+                message: 'Ruleset deleted successfully',
                 data: null
             })
         })
