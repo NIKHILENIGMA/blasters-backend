@@ -8,16 +8,17 @@ const defaultRulesetConfig: CreateRuleSet = {
     config: {
         totalPlayers: 12,
         roles: {
-            batsman: { min: 5 },
-            bowler: { min: 4 },
+            batsman: { min: 4 },
+            bowler: { min: 5 },
             wicketKeeper: { min: 1 },
-            allRounder: { min: 1 }
+            allRounder: { min: 2 }
         },
         overseas: { max: 4 },
         multipliers: {
             captain: 4,
             viceCaptain: 3,
-            impactPlayer: 2.5
+            impactPlayer: 2.5,
+            overseas: 1.5
         }
     }
 }

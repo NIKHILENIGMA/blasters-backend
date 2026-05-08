@@ -12,6 +12,7 @@ import {
     matches,
     players,
     rosterCycles,
+    rulesets,
     users
 } from '@/core'
 import { DatabaseConnection } from '@/core/db/service/database.service'
@@ -53,10 +54,7 @@ export interface IAdminService {
 }
 
 export class AdminService implements IAdminService {
-    private readonly scoreService: ScoreService
-    constructor(private readonly db: DatabaseConnection) {
-        this.scoreService = new ScoreService()
-    }
+    constructor(private readonly db: DatabaseConnection) {}
 
     /**
      * API 1: Ingest match data from Cricbuzz and calculate sandbox points.
@@ -65,6 +63,15 @@ export class AdminService implements IAdminService {
         const [fixture] = await this.db.select().from(fixtures).where(eq(fixtures.id, fixtureId))
         if (!fixture) throw new NotFoundError('Fixture not found')
         if (fixture.isProcessed) throw new BadRequestError('Match already published')
+
+        const [activeRuleset] = await this.db
+            .select()
+            .from(rulesets)
+            .where(eq(rulesets.isActive, true))
+            .orderBy(desc(rulesets.createdAt))
+            .limit(1)
+
+        const scoreService = new ScoreService(activeRuleset?.config)
 
         // 1. Fetch from Cricbuzz
         const rawData = await getMatchDetails(cricbuzzMatchId)
@@ -96,7 +103,7 @@ export class AdminService implements IAdminService {
                 const player = playerMap.get(nameOrId.toLowerCase())
                 if (!player) continue // Log missing player if needed
 
-                const battingPoints = this.scoreService.calculateBattingPoints({
+                const battingPoints = scoreService.calculateBattingPoints({
                     ...stat.batting,
                     runs: stat.batting.runs,
                     fours: stat.batting.fours,
@@ -105,7 +112,7 @@ export class AdminService implements IAdminService {
                     isBatsman: player.role === 'Batsman'
                 })
 
-                const bowlingPoints = this.scoreService.calculateBowlingPoints({
+                const bowlingPoints = scoreService.calculateBowlingPoints({
                     ...stat.bowling,
                     wickets: stat.bowling.wickets,
                     runsConceded: stat.bowling.runsConceded,
@@ -115,7 +122,7 @@ export class AdminService implements IAdminService {
                     maidens: stat.bowling.maidens
                 })
 
-                const fieldingPoints = this.scoreService.calculateFieldingPoints(
+                const fieldingPoints = scoreService.calculateFieldingPoints(
                     {
                         ...stat.fielding,
                         catches: stat.fielding.catches,
@@ -222,21 +229,16 @@ export class AdminService implements IAdminService {
                     const player = dbPlayers.find((p) => p.id === lp.playerId)
                     const isPlaying = lp.selectionType === lineupSelectionTypes[0]
 
-                    let fantasyRole:
-                        | 'Normal'
-                        | 'Captain'
-                        | 'ViceCaptain'
-                        | 'ImpactPlayer'
-                        | 'OverseasPlayer' = 'Normal'
+                    let fantasyRole: 'Normal' | 'Captain' | 'ViceCaptain' | 'ImpactPlayer' =
+                        'Normal'
                     if (lp.playerId === lineup?.captainId) fantasyRole = 'Captain'
                     else if (lp.playerId === lineup?.viceCaptainId) fantasyRole = 'ViceCaptain'
                     else if (lp.playerId === lineup?.impactPlayerId) fantasyRole = 'ImpactPlayer'
-                    else if (player?.isOverseas) fantasyRole = 'OverseasPlayer'
 
                     // Calculate final points using the comprehensive method
                     const scoreBreakdown =
                         isPlaying && perf
-                            ? this.scoreService.calculateFinalPoints({
+                            ? scoreService.calculateFinalPoints({
                                   batting: perf.stats.batting,
                                   bowling: perf.stats.bowling,
                                   fielding: perf.stats.fielding,

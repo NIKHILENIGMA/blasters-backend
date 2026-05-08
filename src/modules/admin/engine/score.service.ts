@@ -5,6 +5,7 @@ import {
     PlayerScoringBreakdown,
     RoleBreakdown
 } from '../admin.types'
+import type { RulesetConfig } from '@/core'
 
 interface BatsmanScoringConfig {
     runs: number
@@ -40,6 +41,8 @@ interface BowlingScoringConfig {
         wickets: number
         points: number
     }>
+    maiden: number
+    lbwBowled: number
 }
 
 interface FieldingScoringConfig {
@@ -66,12 +69,12 @@ interface ScoringConfig {
     fielder: FieldingScoringConfig
 }
 
-const scoringConfig: ScoringConfig = {
+const defaultScoringConfig: ScoringConfig = {
     batsman: {
         runs: 1,
         fours: 5,
-        ballsFaced: 0,
         sixes: 8,
+        ballsFaced: 0,
         strikeRate: [
             { min: 270, points: 15 },
             { min: 240, points: 10 },
@@ -112,7 +115,9 @@ const scoringConfig: ScoringConfig = {
             { wickets: 4, points: 90 },
             { wickets: 5, points: 140 },
             { wickets: 6, points: 200 }
-        ]
+        ],
+        maiden: 100,
+        lbwBowled: 5
     },
     fielder: {
         catch: 25,
@@ -141,15 +146,89 @@ interface RolesPointsConfig {
     overseasPlayerMultiplier: number
 }
 
-const rolesPointsConfig: RolesPointsConfig = {
+const defaultRolesPointsConfig: RolesPointsConfig = {
     captainMultipler: 4,
     viceCaptainMultiplier: 3,
-    impactPlayerMultiplier: 5.5,
+    impactPlayerMultiplier: 2.5,
     overseasPlayerMultiplier: 1.5
 }
 
 export class ScoreService {
-    constructor() {}
+    private readonly scoringConfig: ScoringConfig
+    private readonly rolesPointsConfig: RolesPointsConfig
+
+    constructor(rulesetConfig?: RulesetConfig) {
+        this.scoringConfig = this.resolveScoringConfig(rulesetConfig)
+        this.rolesPointsConfig = this.resolveRolesPointsConfig(rulesetConfig)
+    }
+
+    private resolveScoringConfig(rulesetConfig?: RulesetConfig): ScoringConfig {
+        const scoring = rulesetConfig?.scoring
+
+        return {
+            batsman: {
+                ...defaultScoringConfig.batsman,
+                ...scoring?.batsman,
+                strikeRate: scoring?.batsman?.strikeRate ?? defaultScoringConfig.batsman.strikeRate,
+                mileStones: scoring?.batsman?.mileStones ?? defaultScoringConfig.batsman.mileStones,
+                duckPenalty:
+                    scoring?.batsman?.duckPenalty ?? defaultScoringConfig.batsman.duckPenalty
+            },
+            bowler: {
+                ...defaultScoringConfig.bowler,
+                ...scoring?.bowler,
+                overBonus: scoring?.bowler?.overBonus ?? defaultScoringConfig.bowler.overBonus,
+                economyRate:
+                    scoring?.bowler?.economyRate ?? defaultScoringConfig.bowler.economyRate,
+                mileStones: scoring?.bowler?.mileStones ?? defaultScoringConfig.bowler.mileStones
+            },
+            fielder: {
+                ...defaultScoringConfig.fielder,
+                ...scoring?.fielder,
+                numberOfCatchesForBonus:
+                    scoring?.fielder?.numberOfCatchesForBonus ??
+                    defaultScoringConfig.fielder.numberOfCatchesForBonus,
+                numberOfRunOutsForBonus:
+                    scoring?.fielder?.numberOfRunOutsForBonus ??
+                    defaultScoringConfig.fielder.numberOfRunOutsForBonus,
+                stumpingBonus:
+                    scoring?.fielder?.stumpingBonus ?? defaultScoringConfig.fielder.stumpingBonus
+            }
+        }
+    }
+
+    private resolveRolesPointsConfig(rulesetConfig?: RulesetConfig): RolesPointsConfig {
+        return {
+            captainMultipler:
+                rulesetConfig?.multipliers?.captain ?? defaultRolesPointsConfig.captainMultipler,
+            viceCaptainMultiplier:
+                rulesetConfig?.multipliers?.viceCaptain ??
+                defaultRolesPointsConfig.viceCaptainMultiplier,
+            impactPlayerMultiplier:
+                rulesetConfig?.multipliers?.impactPlayer ??
+                defaultRolesPointsConfig.impactPlayerMultiplier,
+            overseasPlayerMultiplier:
+                rulesetConfig?.multipliers?.overseas ??
+                defaultRolesPointsConfig.overseasPlayerMultiplier
+        }
+    }
+
+    private findHighestMinTier<T extends { points: number }>(
+        tiers: T[],
+        value: number,
+        minKey: keyof T
+    ): T | undefined {
+        return [...tiers]
+            .sort((a, b) => Number(b[minKey]) - Number(a[minKey]))
+            .find((tier) => value >= Number(tier[minKey]))
+    }
+
+    private findLowestMaxTier<T extends { max: number; points: number }>(
+        tiers: T[],
+        value: number
+    ): T | undefined {
+        return [...tiers].sort((a, b) => a.max - b.max).find((tier) => value <= tier.max)
+    }
 
     private convertOversToDecimal(overs: number): number {
         const wholeOvers = Math.floor(overs)
@@ -164,29 +243,41 @@ export class ScoreService {
         ballsFaced: number
         isBatsman: boolean
     }): BattingBreakdown {
-        const { runs, fours, sixes, ballsFaced, isBatsman } = data
+        const {
+            runs,
+            fours: numberOfFoursHit,
+            sixes: numberOfSixesHit,
+            ballsFaced,
+            isBatsman
+        } = data
 
-        const rawRunsPoints = (runs - (fours * 4 + sixes * 6)) * scoringConfig.batsman.runs
-        const foursPoints = fours * scoringConfig.batsman.fours
-        const sixesPoints = sixes * scoringConfig.batsman.sixes
+        const rawRunsPoints =
+            (runs - (numberOfFoursHit * 4 + numberOfSixesHit * 6)) * this.scoringConfig.batsman.runs
 
-        const achievedMilestone = [...scoringConfig.batsman.mileStones]
-            .reverse()
-            .find((milestone) => runs >= milestone.runs)
+        const foursPoints = numberOfFoursHit * this.scoringConfig.batsman.fours
+        const sixesPoints = numberOfSixesHit * this.scoringConfig.batsman.sixes
+
+        const achievedMilestone = this.findHighestMinTier(
+            this.scoringConfig.batsman.mileStones,
+            runs,
+            'runs'
+        )
 
         const milestonePoints = achievedMilestone?.points ?? 0
 
         let strikeRatePoints = 0
         if (ballsFaced >= 10) {
             const strikeRate = (runs / ballsFaced) * 100
-            const achievedStrikeRate = scoringConfig.batsman.strikeRate.find(
-                (tier) => strikeRate >= tier.min
+            const achievedStrikeRate = this.findHighestMinTier(
+                this.scoringConfig.batsman.strikeRate,
+                strikeRate,
+                'min'
             )
             strikeRatePoints = achievedStrikeRate?.points ?? 0
         }
 
         const duckPenaltyPoints =
-            runs === 0 && isBatsman ? scoringConfig.batsman.duckPenalty.points : 0
+            runs === 0 && isBatsman ? this.scoringConfig.batsman.duckPenalty.points : 0
 
         const total =
             rawRunsPoints +
@@ -215,18 +306,22 @@ export class ScoreService {
         lbwBowledCount: number
         maidens: number
     }): BowlingBreakdown {
-        const wicketsPoints = data.wickets * scoringConfig.bowler.wickets
-        const dotBallPoints = (data.dots || 0) * scoringConfig.bowler.dotBall
+        const wicketsPoints = data.wickets * this.scoringConfig.bowler.wickets
+        const dotBallPoints = (data.dots || 0) * this.scoringConfig.bowler.dotBall
 
-        const achievedMilestone = [...scoringConfig.bowler.mileStones]
-            .reverse()
-            .find((milestone) => data.wickets >= milestone.wickets)
+        const achievedMilestone = this.findHighestMinTier(
+            this.scoringConfig.bowler.mileStones,
+            data.wickets,
+            'wickets'
+        )
 
         const milestonePoints = achievedMilestone?.points ?? 0
 
-        const achievedOverBonus = [...scoringConfig.bowler.overBonus]
-            .reverse()
-            .find((bonus) => data.oversBowled >= bonus.minOvers)
+        const achievedOverBonus = this.findHighestMinTier(
+            this.scoringConfig.bowler.overBonus,
+            data.oversBowled,
+            'minOvers'
+        )
 
         const overBonusPoints = achievedOverBonus?.points ?? 0
 
@@ -234,14 +329,16 @@ export class ScoreService {
         const decimalOvers = this.convertOversToDecimal(data.oversBowled)
         if (decimalOvers > 0) {
             const economyRate = data.runsConceded / decimalOvers
-            const economyTier = scoringConfig.bowler.economyRate.find(
-                (tier) => economyRate <= tier.max
+            const economyTier = this.findLowestMaxTier(
+                this.scoringConfig.bowler.economyRate,
+                economyRate
             )
             economyPoints = economyTier?.points ?? 0
         }
 
-        const maidenPoints = (data.maidens || 0) * 100
-        const lbwBowledPoints = (data.lbwBowledCount || 0) * 5
+        const maidenPoints = (data.maidens || 0) * (this.scoringConfig.bowler.maiden ?? 100)
+        const lbwBowledPoints =
+            (data.lbwBowledCount || 0) * (this.scoringConfig.bowler.lbwBowled ?? 5)
 
         const total =
             wicketsPoints +
@@ -272,27 +369,35 @@ export class ScoreService {
         },
         isWicketKeeper: boolean
     ): FieldingBreakdown {
-        const catchesPoints = data.catches * scoringConfig.fielder.catch
-        const runOutPoints = data.runOutDirect * scoringConfig.fielder.runOut
-        const stumpingsPoints = isWicketKeeper ? data.stumpings * scoringConfig.fielder.stumping : 0
+        const catchesPoints = data.catches * this.scoringConfig.fielder.catch
+        const runOutPoints = data.runOutDirect * this.scoringConfig.fielder.runOut
+        const stumpingsPoints = isWicketKeeper
+            ? data.stumpings * this.scoringConfig.fielder.stumping
+            : 0
 
-        const achievedCatchBonus = [...scoringConfig.fielder.numberOfCatchesForBonus]
-            .reverse()
-            .find((bonus) => data.catches >= bonus.minCatches)
+        const achievedCatchBonus = this.findHighestMinTier(
+            this.scoringConfig.fielder.numberOfCatchesForBonus,
+            data.catches,
+            'minCatches'
+        )
 
         const catchBonusPoints = achievedCatchBonus?.points ?? 0
 
-        const achievedRunOutBonus = [...scoringConfig.fielder.numberOfRunOutsForBonus]
-            .reverse()
-            .find((bonus) => data.runOutDirect >= bonus.minRunOuts)
+        const achievedRunOutBonus = this.findHighestMinTier(
+            this.scoringConfig.fielder.numberOfRunOutsForBonus,
+            data.runOutDirect,
+            'minRunOuts'
+        )
 
         const runOutBonusPoints = achievedRunOutBonus?.points ?? 0
 
         let stumpingBonusPoints = 0
         if (isWicketKeeper) {
-            const achievedStumpingBonus = [...scoringConfig.fielder.stumpingBonus]
-                .reverse()
-                .find((bonus) => data.stumpings >= bonus.minStumpings)
+            const achievedStumpingBonus = this.findHighestMinTier(
+                this.scoringConfig.fielder.stumpingBonus,
+                data.stumpings,
+                'minStumpings'
+            )
 
             stumpingBonusPoints = achievedStumpingBonus?.points ?? 0
         }
@@ -332,21 +437,18 @@ export class ScoreService {
 
         switch (role) {
             case 'Captain':
-                roleMultiplier = rolesPointsConfig.captainMultipler
+                roleMultiplier = this.rolesPointsConfig.captainMultipler
                 finalPoints = basePoints * roleMultiplier
                 roleBonusPoints = finalPoints - basePoints
                 break
 
             case 'ViceCaptain':
-                roleMultiplier = rolesPointsConfig.viceCaptainMultiplier
+                roleMultiplier = this.rolesPointsConfig.viceCaptainMultiplier
                 finalPoints = basePoints * roleMultiplier
                 roleBonusPoints = finalPoints - basePoints
                 break
 
             case 'OverseasPlayer':
-                roleMultiplier = rolesPointsConfig.overseasPlayerMultiplier
-                finalPoints = basePoints * roleMultiplier
-                roleBonusPoints = finalPoints - basePoints
                 break
 
             case 'ImpactPlayer': {
@@ -367,7 +469,7 @@ export class ScoreService {
                 }
 
                 if (impactQualified) {
-                    roleMultiplier = rolesPointsConfig.impactPlayerMultiplier
+                    roleMultiplier = this.rolesPointsConfig.impactPlayerMultiplier
                     finalPoints = basePoints * roleMultiplier
                     roleBonusPoints = finalPoints - basePoints
                 } else {
@@ -431,14 +533,10 @@ export class ScoreService {
         let overseasMultiplier = 1
         let overseasBonusPoints = 0
 
-        const shouldApplyOverseasBonus =
-            params.isOverseas &&
-            params.fantasyRole !== 'OverseasPlayer' &&
-            params.fantasyRole !== 'Normal' &&
-            finalPoints > 0
+        const shouldApplyOverseasBonus = params.isOverseas && finalPoints > 0
 
         if (shouldApplyOverseasBonus) {
-            overseasMultiplier = rolesPointsConfig.overseasPlayerMultiplier
+            overseasMultiplier = this.rolesPointsConfig.overseasPlayerMultiplier
             const beforeOverseas = finalPoints
             finalPoints = beforeOverseas * overseasMultiplier
             overseasBonusPoints = finalPoints - beforeOverseas
