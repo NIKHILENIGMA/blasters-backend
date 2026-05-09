@@ -206,6 +206,7 @@ export class FranchiseService implements IFranchiseService {
                 match.id,
                 tx
             )
+            let removedPlayerIds: string[] = []
 
             if (!rosterCycle) {
                 const [createdCycle] = await tx
@@ -230,6 +231,22 @@ export class FranchiseService implements IFranchiseService {
                     })
                     .where(eq(rosterCycles.id, rosterCycle.id))
 
+                const existingRosterPlayers = await tx
+                    .select({ playerId: rosterCyclePlayers.playerId })
+                    .from(rosterCyclePlayers)
+                    .where(eq(rosterCyclePlayers.rosterCycleId, rosterCycle.id))
+
+                const selectedPlayerIds = new Set(selectedPlayers.map((player) => player.id))
+                removedPlayerIds = existingRosterPlayers
+                    .map((player) => player.playerId)
+                    .filter((playerId) => !selectedPlayerIds.has(playerId))
+
+                await this.deleteLineupsWithRemovedPlayingPlayers(
+                    rosterCycle.id,
+                    removedPlayerIds,
+                    tx
+                )
+
                 await tx
                     .delete(rosterCyclePlayers)
                     .where(eq(rosterCyclePlayers.rosterCycleId, rosterCycle.id))
@@ -243,6 +260,41 @@ export class FranchiseService implements IFranchiseService {
                 }))
             )
         })
+    }
+
+    private async deleteLineupsWithRemovedPlayingPlayers(
+        rosterCycleId: string,
+        removedPlayerIds: string[],
+        executor: DatabaseConnection = this.db
+    ) {
+        if (removedPlayerIds.length === 0) {
+            return
+        }
+
+        const invalidLineups = await executor
+            .select({ id: fixtureLineups.id })
+            .from(fixtureLineups)
+            .innerJoin(fixtures, eq(fixtureLineups.fixtureId, fixtures.id))
+            .innerJoin(
+                fixtureLineupPlayers,
+                eq(fixtureLineupPlayers.fixtureLineupId, fixtureLineups.id)
+            )
+            .where(
+                and(
+                    eq(fixtureLineups.rosterCycleId, rosterCycleId),
+                    eq(fixtureLineupPlayers.selectionType, lineupSelectionTypes[0]),
+                    inArray(fixtureLineupPlayers.playerId, removedPlayerIds),
+                    eq(fixtures.isProcessed, false)
+                )
+            )
+
+        const invalidLineupIds = [...new Set(invalidLineups.map((lineup) => lineup.id))]
+
+        if (invalidLineupIds.length === 0) {
+            return
+        }
+
+        await executor.delete(fixtureLineups).where(inArray(fixtureLineups.id, invalidLineupIds))
     }
 
     async getUpcomingFixtures(userId: string): Promise<GetUpcomingFixturesResponse> {
