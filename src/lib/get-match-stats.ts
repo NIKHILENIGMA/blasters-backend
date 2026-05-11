@@ -1,8 +1,12 @@
-import { CRICBUZ_API_KEY } from '@/config'
 import axios from 'axios'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+
+import { CRICBUZ_API_KEY, IS_DEVELOPMENT } from '@/config'
 
 export interface ParsedPlayerStats {
     name: string
+    cricbuzzPlayerId?: string
     batting: {
         runs: number
         fours: number
@@ -26,6 +30,7 @@ export interface ParsedPlayerStats {
 }
 
 interface CricbuzzBatsmanEntry {
+    id?: number
     name: string
     runs: number
     fours: number
@@ -35,6 +40,7 @@ interface CricbuzzBatsmanEntry {
 }
 
 interface CricbuzzBowlerEntry {
+    id?: number
     name: string
     wickets: number
     overs: string
@@ -53,6 +59,23 @@ interface CricbuzzMatchDetails {
 }
 
 export async function getMatchDetails(cribuzMatchId: string): Promise<CricbuzzMatchDetails> {
+    if (IS_DEVELOPMENT && cribuzMatchId.startsWith('local:')) {
+        const scorecardName = cribuzMatchId.replace('local:', '')
+
+        if (!/^[a-z0-9_-]+$/i.test(scorecardName)) {
+            throw new Error('Invalid local scorecard name')
+        }
+
+        const scorecardPath = path.join(
+            process.cwd(),
+            'src/core/db/scorecard',
+            `${scorecardName}.json`
+        )
+
+        const file = await readFile(scorecardPath, 'utf8')
+        return JSON.parse(file) as CricbuzzMatchDetails
+    }
+
     const options = {
         method: 'GET',
         url: `https://cricbuzz-cricket.p.rapidapi.com/mcenter/v1/${cribuzMatchId}/hscard`,
@@ -77,10 +100,23 @@ export async function getMatchDetails(cribuzMatchId: string): Promise<CricbuzzMa
  */
 export function processCricbuzzStats(data: CricbuzzMatchDetails): Map<string, ParsedPlayerStats> {
     const statsMap = new Map<string, ParsedPlayerStats>()
-    const getOrCreate = (name: string): ParsedPlayerStats => {
-        if (!statsMap.has(name)) {
-            statsMap.set(name, {
+    const getScorecardKey = (name: string, cricbuzzPlayerId?: number | string): string => {
+        if (cricbuzzPlayerId !== undefined && cricbuzzPlayerId !== null) {
+            return `cricbuzz:${String(cricbuzzPlayerId)}`
+        }
+
+        return `name:${name.toLowerCase()}`
+    }
+    const getOrCreate = (name: string, cricbuzzPlayerId?: number | string): ParsedPlayerStats => {
+        const key = getScorecardKey(name, cricbuzzPlayerId)
+
+        if (!statsMap.has(key)) {
+            statsMap.set(key, {
                 name,
+                cricbuzzPlayerId:
+                    cricbuzzPlayerId !== undefined && cricbuzzPlayerId !== null
+                        ? String(cricbuzzPlayerId)
+                        : undefined,
                 batting: { runs: 0, fours: 0, sixes: 0, ballsFaced: 0, isOut: false },
                 bowling: {
                     wickets: 0,
@@ -93,13 +129,13 @@ export function processCricbuzzStats(data: CricbuzzMatchDetails): Map<string, Pa
                 fielding: { catches: 0, stumpings: 0, runOutDirect: 0 }
             })
         }
-        return statsMap.get(name)!
+        return statsMap.get(key)!
     }
 
     data.scorecard?.forEach((innings) => {
         // 1. Process Batting
         innings.batsman?.forEach((b) => {
-            const player = getOrCreate(b.name)
+            const player = getOrCreate(b.name, b.id)
             player.batting.runs += b.runs
             player.batting.fours += b.fours
             player.batting.sixes += b.sixes
@@ -140,7 +176,7 @@ export function processCricbuzzStats(data: CricbuzzMatchDetails): Map<string, Pa
 
         // 4. Process Bowling
         innings.bowler?.forEach((bw) => {
-            const player = getOrCreate(bw.name)
+            const player = getOrCreate(bw.name, bw.id)
             player.bowling.wickets += bw.wickets
             player.bowling.oversBowled += parseFloat(bw.overs)
             player.bowling.runsConceded += bw.runs
