@@ -58,22 +58,42 @@ interface CricbuzzMatchDetails {
     scorecard?: CricbuzzScorecardInnings[]
 }
 
-export async function getMatchDetails(cribuzMatchId: string): Promise<CricbuzzMatchDetails> {
-    if (IS_DEVELOPMENT && cribuzMatchId.startsWith('local:')) {
-        const scorecardName = cribuzMatchId.replace('local:', '')
+const DEFAULT_LOCAL_SCORECARD = 'rr_v_gt'
 
-        if (!/^[a-z0-9_-]+$/i.test(scorecardName)) {
-            throw new Error('Invalid local scorecard name')
+const readLocalScorecard = async (scorecardName: string): Promise<CricbuzzMatchDetails> => {
+    if (!/^[a-z0-9_-]+$/i.test(scorecardName)) {
+        throw new Error('Invalid local scorecard name')
+    }
+
+    const scorecardPaths = [
+        path.join(process.cwd(), 'src/core/db/scorecard', `${scorecardName}.json`),
+        path.join(process.cwd(), 'server/src/core/db/scorecard', `${scorecardName}.json`)
+    ]
+
+    for (const scorecardPath of scorecardPaths) {
+        try {
+            const file = await readFile(scorecardPath, 'utf8')
+            return JSON.parse(file) as CricbuzzMatchDetails
+        } catch (error) {
+            const nodeError = error as NodeJS.ErrnoException
+            if (nodeError.code !== 'ENOENT') throw error
         }
+    }
 
-        const scorecardPath = path.join(
-            process.cwd(),
-            'src/core/db/scorecard',
-            `${scorecardName}.json`
-        )
+    throw new Error(`Local scorecard not found: ${scorecardName}`)
+}
 
-        const file = await readFile(scorecardPath, 'utf8')
-        return JSON.parse(file) as CricbuzzMatchDetails
+export async function getMatchDetails(cribuzMatchId: string): Promise<CricbuzzMatchDetails> {
+    if (IS_DEVELOPMENT) {
+        const scorecardName = cribuzMatchId.startsWith('local:')
+            ? cribuzMatchId.replace('local:', '')
+            : DEFAULT_LOCAL_SCORECARD
+
+        return readLocalScorecard(scorecardName)
+    }
+
+    if (cribuzMatchId.startsWith('local:')) {
+        throw new Error('Local scorecards can only be used in development')
     }
 
     const options = {
