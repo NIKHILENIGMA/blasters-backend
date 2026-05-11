@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lte, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, InferSelectModel, lte, ne, or, sql } from 'drizzle-orm'
 
 import {
     fantasyFranchises,
@@ -25,8 +25,35 @@ import { ScoreService } from './engine/score.service'
 import { getMatchDetails, ParsedPlayerStats, processCricbuzzStats } from '@/lib/get-match-stats'
 import { EMPTY_BREAKDOWN } from '@/constants/admin.constants'
 
-type FixtureRecord = typeof fixtures.$inferSelect
-type FixtureLineupRecord = typeof fixtureLineups.$inferSelect
+type FixtureRecord = InferSelectModel<typeof fixtures>
+type FixtureLineupRecord = InferSelectModel<typeof fixtureLineups>
+type PlayerRecord = InferSelectModel<typeof players>
+
+const cloneParsedStats = (stat: ParsedPlayerStats): ParsedPlayerStats => ({
+    name: stat.name,
+    cricbuzzPlayerId: stat.cricbuzzPlayerId,
+    batting: { ...stat.batting },
+    bowling: { ...stat.bowling },
+    fielding: { ...stat.fielding }
+})
+
+const mergeParsedStats = (target: ParsedPlayerStats, source: ParsedPlayerStats): void => {
+    target.cricbuzzPlayerId ??= source.cricbuzzPlayerId
+    target.batting.runs += source.batting.runs
+    target.batting.fours += source.batting.fours
+    target.batting.sixes += source.batting.sixes
+    target.batting.ballsFaced += source.batting.ballsFaced
+    target.batting.isOut = target.batting.isOut || source.batting.isOut
+    target.bowling.wickets += source.bowling.wickets
+    target.bowling.oversBowled += source.bowling.oversBowled
+    target.bowling.runsConceded += source.bowling.runsConceded
+    target.bowling.maidens += source.bowling.maidens
+    target.bowling.dots += source.bowling.dots
+    target.bowling.lbwBowledCount += source.bowling.lbwBowledCount
+    target.fielding.catches += source.fielding.catches
+    target.fielding.stumpings += source.fielding.stumpings
+    target.fielding.runOutDirect += source.fielding.runOutDirect
+}
 
 export interface IAdminService {
     ingestMatchPerformance(fixtureId: string, cricbuzzMatchId: string): Promise<void>
@@ -86,16 +113,35 @@ export class AdminService implements IAdminService {
         const dbPlayers = await this.db.select().from(players)
         const playerMap = new Map<string, typeof players.$inferSelect>()
 
-        // We build a resolver that prioritizes ID but falls back to exact name matching
         dbPlayers.forEach((p) => {
-            if (p.cricbuzzPlayerId) playerMap.set(p.cricbuzzPlayerId, p)
-            playerMap.set(p.name.toLowerCase(), p)
+            if (p.cricbuzzPlayerId) playerMap.set(`cricbuzz:${p.cricbuzzPlayerId}`, p)
+            playerMap.set(`name:${p.name.toLowerCase()}`, p)
         })
 
         await this.db.transaction(async (tx) => {
             // 3. Clear existing sandbox data for this fixture
             await tx.delete(matchStats).where(eq(matchStats.fixtureId, fixtureId))
             await tx.delete(fixtureUserPoints).where(eq(fixtureUserPoints.fixtureId, fixtureId))
+
+            const resolvedStatsByPlayerId = new Map<
+                string,
+                { player: PlayerRecord; stats: ParsedPlayerStats }
+            >()
+
+            for (const [scorecardKey, stat] of statsMap.entries()) {
+                const player = playerMap.get(scorecardKey)
+                if (!player) continue // Log missing player if needed
+
+                const existing = resolvedStatsByPlayerId.get(player.id)
+                if (existing) {
+                    mergeParsedStats(existing.stats, stat)
+                } else {
+                    resolvedStatsByPlayerId.set(player.id, {
+                        player,
+                        stats: cloneParsedStats(stat)
+                    })
+                }
+            }
 
             // 4. Map Cricbuzz stats to our Player objects and calculate Base Points
             const finalPerformances: Array<{
@@ -104,10 +150,7 @@ export class AdminService implements IAdminService {
                 basePoints: number
             }> = []
 
-            for (const [nameOrId, stat] of statsMap.entries()) {
-                const player = playerMap.get(nameOrId.toLowerCase())
-                if (!player) continue // Log missing player if needed
-
+            for (const { player, stats: stat } of resolvedStatsByPlayerId.values()) {
                 const battingPoints = scoreService.calculateBattingPoints({
                     ...stat.batting,
                     runs: stat.batting.runs,
