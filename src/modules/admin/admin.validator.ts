@@ -73,10 +73,15 @@ export const CreateFixtureSchema = z.object({
 
 export const UpdateFixtureSchema = z
     .object({
+        teamA: z.string().min(1, 'Team A is required').optional(),
+        teamB: z.string().min(1, 'Team B is required').optional(),
+        startTime: z.coerce.date().optional(),
+        matchNumber: z.string().nullable().optional(),
+        venueId: z.string().nullable().optional(),
         matchStatus: z.enum(['scheduled', 'live', 'completed']).optional(),
         lineupLockAt: z.coerce.date().nullable().optional()
     })
-    .refine((data) => data.matchStatus !== undefined || data.lineupLockAt !== undefined, {
+    .refine((data) => Object.keys(data).length > 0, {
         message: 'At least one fixture field must be provided'
     })
 

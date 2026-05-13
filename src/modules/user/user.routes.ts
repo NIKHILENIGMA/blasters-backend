@@ -8,6 +8,10 @@ const router = Router()
 router.route('/dashboard').get(clerkMiddleware, userController.getDashboard)
 router.route('/leaderboard').get(clerkMiddleware, userController.getLeaderboard)
 router.route('/leaderboard/toppers').get(clerkMiddleware, userController.getTopScorers)
+router
+    .route('/profile')
+    .get(clerkMiddleware, userController.getProfile)
+    .patch(clerkMiddleware, userController.syncProfile)
 router.route('/profile/change-username').patch(clerkMiddleware, userController.changeUsername)
 
 export default router

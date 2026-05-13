@@ -76,6 +76,7 @@ type SaveFixtureLineupInput = {
 
 export interface IFranchiseService {
     createFranchise(userId: string, data: CreateFranchiseInput): Promise<void>
+    updateFranchise(userId: string, data: CreateFranchiseInput): Promise<void>
     getFranchiseOverview(userId: string): Promise<unknown>
     getCurrentRosterCycle(userId: string): Promise<unknown>
     saveSquad(userId: string, isDraft: boolean, data: SaveSquadInput): Promise<void>
@@ -108,6 +109,19 @@ export class FranchiseService implements IFranchiseService {
             teamName: data.teamName,
             teamLogo: data.teamLogo
         })
+    }
+
+    async updateFranchise(userId: string, data: CreateFranchiseInput): Promise<void> {
+        const franchise = await this.requireFranchise(userId)
+
+        await this.db
+            .update(fantasyFranchises)
+            .set({
+                teamName: data.teamName,
+                teamLogo: data.teamLogo,
+                updatedAt: new Date()
+            })
+            .where(eq(fantasyFranchises.id, franchise.id))
     }
 
     /**

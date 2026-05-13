@@ -11,6 +11,7 @@ router.use(clerkMiddleware)
 // Franchise routes
 router.post('/', franchiseController.createFranchise)
 router.get('/me', franchiseController.getFranchiseOverview)
+router.patch('/me', franchiseController.updateFranchise)
 router.get('/roster-cycles/current', franchiseController.getCurrentRosterCycle)
 router.put('/roster-cycles/:matchId/squad', franchiseController.saveSquad)
 

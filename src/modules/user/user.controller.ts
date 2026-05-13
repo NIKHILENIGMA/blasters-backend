@@ -3,7 +3,7 @@ import { NextFunction, Request, Response } from 'express'
 import { BaseController, ValidationService } from '@/lib'
 import { IUserService } from './user.service'
 import { UnauthorizedError } from '@/util'
-import { UpdateUsernameSchema } from './user.validation'
+import { SyncProfileSchema, UpdateUsernameSchema } from './user.validation'
 import { STATUS_CODE } from '@/types/api/success.types'
 
 export class UserController extends BaseController {
@@ -62,6 +62,42 @@ export class UserController extends BaseController {
         })
     }
 
+    getProfile = async (req: Request, res: Response, next: NextFunction) => {
+        return this.handleRequest(req, res, next, async () => {
+            const userId: string | undefined = req.user?.id
+            if (!userId) {
+                throw new UnauthorizedError('User ID is required to access the profile')
+            }
+
+            const profile = await this.service.getProfile(userId)
+
+            return this.createResponse({
+                statusCode: STATUS_CODE.OK,
+                message: 'Profile retrieved successfully',
+                data: profile
+            })
+        })
+    }
+
+    syncProfile = async (req: Request, res: Response, next: NextFunction) => {
+        return this.handleRequest(req, res, next, async () => {
+            const userId: string | undefined = req.user?.id
+            if (!userId) {
+                throw new UnauthorizedError('User ID is required to access the profile')
+            }
+
+            const body = ValidationService.validateBody(req.body, SyncProfileSchema)
+
+            await this.service.syncProfile(userId, body)
+
+            return this.createResponse({
+                statusCode: STATUS_CODE.OK,
+                message: 'Profile synced successfully',
+                data: null
+            })
+        })
+    }
+
     changeUsername = async (req: Request, res: Response, next: NextFunction) => {
         return this.handleRequest(req, res, next, async () => {
             const userId: string | undefined = req.user?.id
@@ -71,7 +107,7 @@ export class UserController extends BaseController {
 
             const body = ValidationService.validateBody(req.body, UpdateUsernameSchema)
 
-            await this.service.updateUsername(userId, body.newUsername) // Placeholder for actual profile data retrieval logic
+            await this.service.updateUsername(userId, body.newUsername)
 
             return {
                 statusCode: STATUS_CODE.OK,

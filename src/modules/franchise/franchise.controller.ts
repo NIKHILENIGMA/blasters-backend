@@ -11,7 +11,8 @@ import {
     MatchIdParamSchema,
     SaveFixtureLineupSchema,
     SaveSquadQuerySchema,
-    SaveSquadSchema
+    SaveSquadSchema,
+    UpdateFranchiseSchema
 } from './franchise.validator'
 
 export class FranchiseController extends BaseController {
@@ -33,6 +34,25 @@ export class FranchiseController extends BaseController {
             return this.createResponse({
                 statusCode: STATUS_CODE.CREATED,
                 message: 'Franchise created successfully',
+                data: null
+            })
+        })
+    }
+
+    updateFranchise = async (req: Request, res: Response, next: NextFunction) => {
+        return this.handleRequest(req, res, next, async () => {
+            const userId = req.user?.id
+            if (!userId) {
+                throw new UnauthorizedError('User not authenticated')
+            }
+
+            const body = ValidationService.validateBody(req.body, UpdateFranchiseSchema)
+
+            await this.service.updateFranchise(userId, body)
+
+            return this.createResponse({
+                statusCode: STATUS_CODE.OK,
+                message: 'Franchise updated successfully',
                 data: null
             })
         })

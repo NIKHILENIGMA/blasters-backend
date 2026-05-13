@@ -5,6 +5,11 @@ export const CreateFranchiseSchema = z.object({
     teamLogo: z.string().min(1, 'Team logo is required')
 })
 
+export const UpdateFranchiseSchema = z.object({
+    teamName: z.string().trim().min(3, 'Team name must be at least 3 characters long'),
+    teamLogo: z.string().trim().min(1, 'Team logo is required')
+})
+
 export const MatchIdParamSchema = z.object({
     matchId: z.uuid('Match ID must be a valid UUID')
 })

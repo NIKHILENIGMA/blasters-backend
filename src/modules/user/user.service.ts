@@ -1,8 +1,8 @@
-import { users } from '@/core'
+import { fantasyFranchises, users } from '@/core'
 import { DatabaseConnection } from '@/core/db/service/database.service'
-import { NotFoundError } from '@/util'
-import { eq, sql } from 'drizzle-orm'
-import { LeaderBoardRanking } from './user.types'
+import { ConflictError, NotFoundError } from '@/util'
+import { and, eq, ne, sql } from 'drizzle-orm'
+import { LeaderBoardRanking, UserProfile } from './user.types'
 
 export interface IUserService {
     getUserStats(userId: string): Promise<{
@@ -13,6 +13,11 @@ export interface IUserService {
     }>
     getLeaderboard(): Promise<LeaderBoardRanking[]>
     getTopScorers(limit?: number): Promise<LeaderBoardRanking[]>
+    getProfile(userId: string): Promise<UserProfile>
+    syncProfile(
+        userId: string,
+        data: { firstName?: string; lastName?: string; profileImage?: string | null }
+    ): Promise<void>
     updateUsername(userId: string, newUsername: string): Promise<void>
 }
 
@@ -158,6 +163,72 @@ export class UserService implements IUserService {
             throw new NotFoundError('User not found')
         }
 
-        await this.db.update(users).set({ username: newUsername }).where(eq(users.id, userId))
+        const [existingUsername] = await this.db
+            .select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.username, newUsername), ne(users.id, userId)))
+            .limit(1)
+
+        if (existingUsername) {
+            throw new ConflictError('Username is already taken')
+        }
+
+        await this.db
+            .update(users)
+            .set({ username: newUsername, updatedAt: new Date() })
+            .where(eq(users.id, userId))
+    }
+
+    async getProfile(userId: string): Promise<UserProfile> {
+        const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1)
+
+        if (!user) {
+            throw new NotFoundError('User not found')
+        }
+
+        const [franchise] = await this.db
+            .select({
+                id: fantasyFranchises.id,
+                teamName: fantasyFranchises.teamName,
+                teamLogo: fantasyFranchises.teamLogo
+            })
+            .from(fantasyFranchises)
+            .where(eq(fantasyFranchises.userId, userId))
+            .limit(1)
+
+        return {
+            user: {
+                id: user.id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                username: user.username,
+                profileImage: user.profileImage
+            },
+            franchise: franchise ?? null
+        }
+    }
+
+    async syncProfile(
+        userId: string,
+        data: { firstName?: string; lastName?: string; profileImage?: string | null }
+    ): Promise<void> {
+        const [user] = await this.db
+            .select({ id: users.id })
+            .from(users)
+            .where(eq(users.id, userId))
+            .limit(1)
+
+        if (!user) {
+            throw new NotFoundError('User not found')
+        }
+
+        await this.db
+            .update(users)
+            .set({
+                ...data,
+                updatedAt: new Date()
+            })
+            .where(eq(users.id, userId))
     }
 }
