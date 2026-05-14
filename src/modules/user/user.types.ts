@@ -1,4 +1,5 @@
 export interface LeaderBoardRanking {
+    userId: string
     firstName: string
     lastName: string
     username: string

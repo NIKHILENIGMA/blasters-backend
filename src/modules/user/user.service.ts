@@ -90,6 +90,7 @@ export class UserService implements IUserService {
                 GROUP BY ff.user_id
             )
             SELECT
+                u.id AS "userId",
                 u.first_name AS "firstName",
                 u.last_name AS "lastName",
                 u.username AS username,
@@ -100,11 +101,13 @@ export class UserService implements IUserService {
                 RANK() OVER (ORDER BY u.total_score DESC, u.created_at ASC)::int AS rank
             FROM users u
             LEFT JOIN franchise_profile fp ON fp.user_id = u.id
+            WHERE u.role <> 'ADMIN'
             ORDER BY u.total_score DESC, u.created_at ASC
             LIMIT ${limit}
         `)
 
         const leaderboard = result.rows.map((row) => ({
+            userId: row.userId,
             firstName: row.firstName,
             lastName: row.lastName,
             username: row.username,
@@ -128,6 +131,7 @@ export class UserService implements IUserService {
                 GROUP BY ff.user_id
             )
             SELECT
+                u.id AS "userId",
                 u.first_name AS "firstName",
                 u.last_name AS "lastName",
                 u.username AS username,
@@ -138,11 +142,13 @@ export class UserService implements IUserService {
                 RANK() OVER (ORDER BY u.total_score DESC, u.created_at ASC)::int AS rank
             FROM users u
             LEFT JOIN franchise_profile fp ON fp.user_id = u.id
+            WHERE u.role <> 'ADMIN'
             ORDER BY u.total_score DESC, u.created_at ASC
             LIMIT 40
         `)
 
         const leaderboard = result.rows.map((row) => ({
+            userId: row.userId,
             firstName: row.firstName,
             lastName: row.lastName,
             username: row.username,
