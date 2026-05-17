@@ -275,9 +275,14 @@ export class ScoreService {
             )
             strikeRatePoints = achievedStrikeRate?.points ?? 0
         }
+        /**
+         * Duck penalty applies if the player is a batsman, has scored 0 runs, and has faced at least 1 ball. This ensures that players who did not get a chance to bat (0 balls faced) are not unfairly penalized.
+         */
+        const duckPenaltyCondition = runs === 0 && ballsFaced > 0 && isBatsman
 
-        const duckPenaltyPoints =
-            runs === 0 && isBatsman ? this.scoringConfig.batsman.duckPenalty.points : 0
+        const duckPenaltyPoints = duckPenaltyCondition
+            ? this.scoringConfig.batsman.duckPenalty.points
+            : 0
 
         const total =
             rawRunsPoints +
