@@ -166,8 +166,9 @@ export function processCricbuzzStats(data: CricbuzzMatchDetails): Map<string, Pa
 
             // 2. Parse Fielding from outdec (e.g., "c Dhoni b Jadeja")
             const out = (b.outdec || '').toLowerCase()
-            if (out.startsWith('c & b ')) {
-                const bowlerName = b.outdec.substring(6).trim()
+            const caughtAndBowledMatch = b.outdec.match(/^c\s*(?:&|and)\s*b\s+(.+)$/i)
+            if (caughtAndBowledMatch) {
+                const bowlerName = caughtAndBowledMatch[1].trim()
                 getOrCreate(bowlerName).fielding.catches += 1
             } else if (out.startsWith('c ')) {
                 // Extract fielder name between 'c ' and ' b '
@@ -177,10 +178,15 @@ export function processCricbuzzStats(data: CricbuzzMatchDetails): Map<string, Pa
                 const fielderName = b.outdec.split(' b ')[0].substring(3).trim()
                 getOrCreate(fielderName).fielding.stumpings += 1
             } else if (out.includes('run out')) {
-                // Simplified: extract name inside (brackets)
                 const match = b.outdec.match(/\(([^)]+)\)/)
                 if (match) {
-                    getOrCreate(match[1].trim()).fielding.runOutDirect += 1
+                    match[1]
+                        .split('/')
+                        .map((fielderName) => fielderName.trim())
+                        .filter(Boolean)
+                        .forEach((fielderName) => {
+                            getOrCreate(fielderName).fielding.runOutDirect += 1
+                        })
                 }
             }
 
